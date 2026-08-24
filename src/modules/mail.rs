@@ -1450,6 +1450,73 @@ pub async fn delete_mails(c: &GwClient, uids: &str) -> Result<Value> {
     Ok(result)
 }
 
+/// 메일을 다른 메일함(폴더)으로 이동한다(mail002A08). uids=콤마구분 muid, to_box=목적지 폴더 이름.
+/// 폴더 이름을 `mbox_seq`로 번호(mboxSeq)로 해석해 `targetSeq`에 싣는다(파생 조회). delete_mails와 같은 계열.
+pub async fn move_mails(c: &GwClient, uids: &str, to_box: &str) -> Result<Value> {
+    let seq = mbox_seq(c, to_box).await?;
+    c.call(
+        "/mail/mail002A08",
+        &json!({ "uids": uids, "targetbox": "", "targetSeq": seq.to_string() }),
+    )
+    .await
+}
+
+/// 메일함(폴더)을 생성한다(mail001A05). 최상위(parentSeq="0")에 만든다. 응답에 새 mboxSeq 포함.
+pub async fn create_mailbox(c: &GwClient, name: &str) -> Result<Value> {
+    c.call(
+        "/mail/mail001A05",
+        &json!({ "mbox": name, "parentSeq": "0" }),
+    )
+    .await
+}
+
+/// 메일함(폴더) 이름을 변경한다(mail001A07). name=현재 이름 → mbox_seq로 번호 해석 후 new_name으로.
+pub async fn rename_mailbox(c: &GwClient, name: &str, new_name: &str) -> Result<Value> {
+    let seq = mbox_seq(c, name).await?;
+    c.call(
+        "/mail/mail001A07",
+        &json!({ "mbox": new_name, "mboxSeq": seq.to_string() }),
+    )
+    .await
+}
+
+/// 메일함(폴더)을 삭제한다(mail001A06). name→번호 해석. ⚠️ 폴더가 실제로 없어진다(안의 메일 포함 주의).
+pub async fn delete_mailbox(c: &GwClient, name: &str) -> Result<Value> {
+    let seq = mbox_seq(c, name).await?;
+    c.call(
+        "/mail/mail001A06",
+        &json!({ "mboxSeq": seq.to_string() }),
+    )
+    .await
+}
+
+/// 자동분류(autoDiv) 규칙 목록(mail025A01). resultData.autodivList=[{autoDivSeq, check_data, fild_name, mboxSeq, moveBoxName, filterOrder}].
+pub async fn list_mail_rules(c: &GwClient) -> Result<Value> {
+    c.call("/mail/mail025A01", &json!({})).await
+}
+
+/// 자동분류 규칙 생성(mail025A02). to_box=이동할 폴더 이름(→mboxSeq), field=조건, match_value=매칭값.
+/// field: mailfrom(발신자)/mailfromdomain(발신도메인)/subject(제목). 친숙 별칭(sender/domain/발신자 등)도 받는다.
+pub async fn set_mail_rule(c: &GwClient, to_box: &str, field: &str, match_value: &str) -> Result<Value> {
+    let seq = mbox_seq(c, to_box).await?;
+    let f = match field {
+        "sender" | "from" | "발신자" | "mailfrom" => "mailfrom",
+        "domain" | "발신도메인" | "mailfromdomain" => "mailfromdomain",
+        "subject" | "제목" => "subject",
+        other => other,
+    };
+    c.call(
+        "/mail/mail025A02",
+        &json!({ "mboxSeq": seq.to_string(), "fild_name": f, "check_data": match_value }),
+    )
+    .await
+}
+
+/// 자동분류 규칙 삭제(mail025A04). auto_div_seq=규칙 ID(list_mail_rules의 autoDivSeq).
+pub async fn delete_mail_rule(c: &GwClient, auto_div_seq: i64) -> Result<Value> {
+    c.call("/mail/mail025A04", &json!({ "autoDivSeq": auto_div_seq })).await
+}
+
 /// 발송·임시저장이 공유하는 폼의 **회귀 기준선**. 발송 폼을 `ComposeForm`으로 뽑아내면서
 /// 필드가 빠지거나 값이 달라져도 컴파일러가 잡지 못하기 때문에, 실측 필드 집합을 여기 박아둔다.
 #[cfg(test)]

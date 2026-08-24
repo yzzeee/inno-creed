@@ -149,6 +149,98 @@ impl Amaranth {
         Ok(CallToolResult::success(vec![ContentBlock::text(msg.to_string())]))
     }
 
+    #[tool(description = "메일을 다른 메일함(폴더)으로 이동한다. uids=콤마구분 muid(list_mail_inbox), to_box=목적지 폴더 이름(list_mailboxes의 name, 예 \"자료\"/\"INBOX\"). 폴더는 이름으로 주면 내부에서 번호로 해석한다.")]
+    async fn move_mail(
+        &self,
+        Parameters(a): Parameters<MoveMailArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.ensure_session().await?;
+        modules::mail::move_mails(&self.client, &a.uids, &a.to_box)
+            .await
+            .map_err(map_domain_err_ctx("메일 이동 실패"))?;
+        let msg = serde_json::json!({
+            "ok": true,
+            "uids": a.uids,
+            "to_box": a.to_box,
+            "moved": true,
+            "note": "이동됨(muid 재부여 — 이후 추적은 재조회 필요)"
+        });
+        Ok(CallToolResult::success(vec![ContentBlock::text(msg.to_string())]))
+    }
+
+    #[tool(description = "메일함(폴더)을 새로 만든다(최상위). name=만들 폴더 이름. 이미 있는 이름이면 서버가 거절할 수 있다. 생성 후 list_mailboxes로 확인 권장.")]
+    async fn create_mailbox(
+        &self,
+        Parameters(a): Parameters<CreateMailboxArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.ensure_session().await?;
+        let data = modules::mail::create_mailbox(&self.client, &a.name)
+            .await
+            .map_err(map_domain_err_ctx("메일함 생성 실패"))?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(data.to_string())]))
+    }
+
+    #[tool(description = "메일함(폴더) 이름을 바꾼다. name=현재 이름(list_mailboxes의 name), new_name=새 이름.")]
+    async fn rename_mailbox(
+        &self,
+        Parameters(a): Parameters<RenameMailboxArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.ensure_session().await?;
+        modules::mail::rename_mailbox(&self.client, &a.name, &a.new_name)
+            .await
+            .map_err(map_domain_err_ctx("메일함 이름변경 실패"))?;
+        let msg = serde_json::json!({ "ok": true, "name": a.name, "new_name": a.new_name, "renamed": true });
+        Ok(CallToolResult::success(vec![ContentBlock::text(msg.to_string())]))
+    }
+
+    #[tool(description = "메일함(폴더)을 삭제한다. name=삭제할 폴더 이름. ⚠️ 폴더가 실제로 없어진다(안의 메일 주의) — 사용자가 명시적으로 지시할 때만.")]
+    async fn delete_mailbox(
+        &self,
+        Parameters(a): Parameters<DeleteMailboxArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.ensure_session().await?;
+        modules::mail::delete_mailbox(&self.client, &a.name)
+            .await
+            .map_err(map_domain_err_ctx("메일함 삭제 실패"))?;
+        let msg = serde_json::json!({ "ok": true, "name": a.name, "deleted": true });
+        Ok(CallToolResult::success(vec![ContentBlock::text(msg.to_string())]))
+    }
+
+    #[tool(description = "메일 자동분류(autoDiv) 규칙 목록을 조회한다. resultData.autodivList의 각 항목: autoDivSeq(규칙ID)·fild_name(조건필드)·check_data(매칭값)·moveBoxName(이동폴더). 규칙 추가/삭제 전 현황 확인용.")]
+    async fn list_mail_rules(&self) -> Result<CallToolResult, ErrorData> {
+        self.ensure_session().await?;
+        let data = modules::mail::list_mail_rules(&self.client)
+            .await
+            .map_err(map_domain_err)?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(data.to_string())]))
+    }
+
+    #[tool(description = "메일 자동분류 규칙을 추가한다. field(mailfrom/mailfromdomain/subject)가 match_value를 포함하는 새 메일을 to_box 폴더로 자동 이동. 예: field=mailfrom, match_value=info@kcloud.or.kr, to_box=뉴스레터. 추가 후 list_mail_rules로 확인.")]
+    async fn set_mail_rule(
+        &self,
+        Parameters(a): Parameters<SetMailRuleArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.ensure_session().await?;
+        modules::mail::set_mail_rule(&self.client, &a.to_box, &a.field, &a.match_value)
+            .await
+            .map_err(map_domain_err_ctx("자동분류 규칙 추가 실패"))?;
+        let msg = serde_json::json!({ "ok": true, "to_box": a.to_box, "field": a.field, "match_value": a.match_value, "created": true });
+        Ok(CallToolResult::success(vec![ContentBlock::text(msg.to_string())]))
+    }
+
+    #[tool(description = "메일 자동분류 규칙을 삭제한다. auto_div_seq=list_mail_rules의 autoDivSeq. 규칙만 지우며 이미 분류된 메일은 그대로 둔다.")]
+    async fn delete_mail_rule(
+        &self,
+        Parameters(a): Parameters<DeleteMailRuleArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.ensure_session().await?;
+        modules::mail::delete_mail_rule(&self.client, a.auto_div_seq)
+            .await
+            .map_err(map_domain_err_ctx("자동분류 규칙 삭제 실패"))?;
+        let msg = serde_json::json!({ "ok": true, "auto_div_seq": a.auto_div_seq, "deleted": true });
+        Ok(CallToolResult::success(vec![ContentBlock::text(msg.to_string())]))
+    }
+
     #[tool(
         description = "⚠️ **읽음 처리된다** — 서버측 읽음 플래그가 세워진다(실증). 사용자가 아직 안 읽은 메일을 대신 열면 그 사람의 미읽음 표시가 사라진다. 되돌리려면 `mark_mail_unread` — ⚠️ **받은메일함 최근 200건 안의 메일만 되돌릴 수 있다**(그 밖이면 거절되므로 되돌림을 전제하고 열지 말 것). 메일 1건의 본문(평문)·헤더·첨부목록을 조회한다. 본문 HTML은 렌더링하지 않고 평문화(외부 이미지 자동로드 안 함, remoteResourceCount로 경고). 본문에 박힌 이미지 중 **이 서버가 가진 것**은 `inlineImages[]`로 나오고 `download_body_image`로 받아볼 수 있다(외부 호스트 이미지는 일부러 빼며, 그 개수가 remoteResourceCount다). 수신자는 to/cc/bcc로 낸다 — ⚠️ **받은 메일의 bcc는 대개 빈 값**이다(숨은참조는 수신자에게 보이지 않는 필드라 헤더에 남지 않는다). muid=list_mail_inbox의 muid."
     )]

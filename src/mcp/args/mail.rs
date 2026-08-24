@@ -97,6 +97,74 @@ pub struct DeleteMailArgs {
 
 #[derive(Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
+pub struct MoveMailArgs {
+    /// 옮길 메일 muid 목록(콤마 구분). list_mail_inbox의 muid 사용.
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub uids: String,
+    /// 목적지 메일함(폴더) 이름. list_mailboxes의 name 사용(예: "자료", "SECLOUDIT", "INBOX").
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub to_box: String,
+}
+
+#[derive(Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct CreateMailboxArgs {
+    /// 만들 메일함(폴더) 이름. 최상위에 생성된다.
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub name: String,
+}
+
+#[derive(Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct RenameMailboxArgs {
+    /// 현재 메일함(폴더) 이름. list_mailboxes의 name.
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub name: String,
+    /// 새 이름.
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub new_name: String,
+}
+
+#[derive(Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct DeleteMailboxArgs {
+    /// 삭제할 메일함(폴더) 이름. list_mailboxes의 name. ⚠️ 폴더가 실제로 사라진다.
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub name: String,
+}
+
+#[derive(Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct SetMailRuleArgs {
+    /// 조건에 맞는 메일을 옮길 폴더 이름. list_mailboxes의 name(예: "뉴스레터", "Jira").
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub to_box: String,
+    /// 조건 필드: "mailfrom"(발신자 주소) / "mailfromdomain"(발신 도메인) / "subject"(제목). sender/domain/제목 등 별칭도 가능.
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub field: String,
+    /// 매칭할 값(예: "info@kcloud.or.kr", "kcloud.or.kr", "입사인사").
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub match_value: String,
+}
+
+#[derive(Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct DeleteMailRuleArgs {
+    /// 삭제할 규칙 ID. list_mail_rules 결과의 autoDivSeq.
+    pub auto_div_seq: i64,
+}
+
+#[derive(Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
 pub struct ReadMailArgs {
     /// 메일 muid. list_mail_inbox 결과의 muid 사용.
     #[serde(deserialize_with = "super::flex_string")]

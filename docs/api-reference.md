@@ -779,7 +779,7 @@ body: 위와 동일 + fileSn=<파일 순번(0-base, 목록 배열 인덱스)>
 
 헤더 서명만으로 완결(목록/상세는 companyInfo 불필요, 카운트만 필요). 표준 봉투. 엔드포인트·필드는 실제 트래픽 캡처로 확정했다.
 
-**미구현은 승인/반려뿐**이다 — 조직 의사결정 행위라 의도적으로 제외했다. 상신·상신취소·임시보관삭제·개인결재라인 CRUD는 구현·e2e 실증 완료.
+**미구현은 승인/반려뿐**이다 — 조직 의사결정 행위라 의도적으로 제외했다. 상신·임시저장·상신취소·임시보관삭제·개인결재라인 CRUD는 구현·e2e 실증 완료.
 
 ### 함별 목록 → `list_approvals`
 
@@ -960,6 +960,18 @@ POST /eap/eap110A06   상신 → resultData.result = 신규 docId
 - casing 함정: `/system/`·`/personal/` 계열은 **`approKey`**(대문자 K), `eap110A03`/`A06`은 **`approkey`**(소문자).
 - `bindData`는 **이중 인코딩**(`JSON.stringify` 두 번)해 전송한다. 본문 HTML은 `encodeURIComponent`.
 - 페이로드의 신원 필드(`coCd`/`deptCd`/`empCd`/이름)는 도구가 **로그인 사용자 값으로 덮어쓴다** — 가이드 예시에 박힌 타인 신원이 그대로 상신되는 것을 막기 위해서다.
+
+### 임시저장 → `save_draft_approval`
+
+**상신과 같은 엔드포인트 `eap110A06`, `doc_sts`만 `20`(상신)→`10`(임시보관)으로 다르다.** 2026-08-25 아마란스 웹 실측 캡처로 확정 — 나머지 흐름(0hr00011·create·a03 병합·HP interlock 3콜·페이로드 조립)은 상신과 완전히 동일하다. 즉 `submit_approval`과 공통 실행부(`submit_or_draft`)를 공유하고 doc_sts만 갈린다.
+
+- ⚠️ **함정 — `doc_contents`가 곧 본문이다.** 상신은 서버가 `bindData`로 최종 문서를 렌더하지만(그래서 한 줄 HTML로도 됐다), **임시저장은 `doc_contents`를 그대로 보관하고 웹 편집기가 그걸 다시 로드한다.** 한 줄 요약을 넘기면 웹에서 **빈 문서**가 된다(폼도 안 채워짐). 웹 양식이 만드는 완성 표 HTML(출장은 출장정보 표 + 상세일정 표, 편집기 복원용 inline style·`contenteditable`·`mapping_key` 포함, 약 22KB)을 넘겨야 한다.
+- ⚠️ **이 표 HTML을 도구가 생성하지 않는다** — 호출자가 완성본을 넘겨야 한다. 양식별 표 템플릿 자동생성은 **미구현(향후 과제)**. 실무상 간단한 초안 저장은 아마란스 웹이 낫다. `submit_approval`(상신)은 서버 렌더라 이 문제가 없다.
+
+- **신규 저장 전용.** 새 임시보관 문서를 만든다(`doc_id:0`). 이미 임시보관된 문서의 재저장은 미지원 — 재저장 payload는 `doc_id`·`docContentsId`·`versionCheck{docSts:"10"}`를 추가로 요구하는데(실측), 이 분기는 넣지 않았다. 저장한 draft를 고치려면 아마란스 웹에서 연다.
+- 신규 임시저장 payload는 submit과 **완전 대칭**이다 — `doc_id:0`, `docContentsId` 없음, `versionCheck:null`. 그 두 필드는 재저장 때만 생긴다.
+- 근태 양식은 임시저장도 HP interlock 3콜을 거친다(상신과 동일, 실측). `doc_sts` 10/20이 2099(interlock 누락)의 원인이라는 설은 반증됨.
+- 성공 판정은 상신과 같다 — `resultData.result`에 새 docId. `list_approvals(box_name:"draft")`로 read-back, 정리는 `delete_temp_approval`.
 
 ### 상신취소 → `cancel_approval`
 
@@ -1163,7 +1175,7 @@ body: a10Domain=https://gw.innogrid.com        # 유일 파라미터
 
 ## 미조사 (다음 단계)
 
-- **전자결재(`/eap/*`)**: 읽기 3종 + 개인결재라인 CRUD + **상신·상신취소·임시보관삭제** 구현 완료(근태 4양식 순수 API e2e 실증). **미구현은 승인/반려뿐** — 조직 의사결정 행위라 의도적 제외.
+- **전자결재(`/eap/*`)**: 읽기 3종 + 개인결재라인 CRUD + **상신·임시저장·상신취소·임시보관삭제** 구현 완료(근태 4양식 순수 API e2e 실증). **미구현은 승인/반려뿐** — 조직 의사결정 행위라 의도적 제외.
 - 전자결재 첨부: **읽기(목록·다운로드)·쓰기(첨부 달아 상신) 모두 구현 완료**.
   업로드는 `ecm001A01` multipart `file[]`(`moduleGbn=EAP` — 그 값이 파일의 `type`이 된다.
   ⚠️ **다운로드만 `BOARD`** 라 방향에 따라 다르다), 문서에 붙이는 것은 `submit_approval.attachments`.

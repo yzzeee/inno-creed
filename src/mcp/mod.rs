@@ -168,8 +168,9 @@ mod tests {
         "mailbox_counts", "mark_mail_unread", "move_mail",
         "my_reservations", "org_chart", "pending_approvals", "person_group", "read_approval",
         "read_approval_line", "read_mail", "read_notice", "rename_mailbox", "reserve_resource",
-        "save_approval_line", "save_mail_draft", "save_person_group", "search", "send_mail",
-        "send_mail_from_draft", "set_mail_rule", "submit_approval", "suggest_approval_line",
+        "save_approval_line", "save_draft_approval", "save_mail_draft", "save_person_group",
+        "search", "send_mail", "send_mail_from_draft", "set_mail_rule", "submit_approval",
+        "suggest_approval_line",
         "update_calendar_event", "update_reservation", "whoami",
     ];
 

@@ -539,7 +539,6 @@ async fn check_line_before_submit(c: &GwClient, line_id: i64) -> Result<()> {
 /// - `numbering_id`: 채번 규칙(기본 "1001").
 ///
 /// 양식필수 합의자/수신참조는 eap110A03에서 서버가 해석한 것을 자동 병합한다.
-#[allow(clippy::too_many_arguments)]
 pub async fn submit_approval(
     c: &GwClient,
     form_id: i64,
@@ -557,6 +556,60 @@ pub async fn submit_approval(
     // 실제 상신해 확인하는 것은 잘못된 결재선의 실문서가 나가는 위험이 있어 시험하지 않았다).
     // 여기서 막으면 그 질문 자체가 닫힌다. 비용은 조회 1콜 — 되돌릴 수 없는 상신 앞의 1콜이다.
     check_line_before_submit(c, line_id).await?;
+
+    // 상신 = doc_sts "20".
+    submit_or_draft(
+        c, form_id, doc_title, line_id, hp_application_json, bind_data_json,
+        doc_contents_html, numbering_id, "20",
+    )
+    .await
+}
+
+/// 전자결재 임시저장(draft). 상신과 **같은 엔드포인트 eap110A06**을 쓰고 doc_sts만 "10"으로
+/// 다르다(2026-08-25 아마란스 웹 실측 캡처로 확정). 신규 저장 전용 — 기존 draft 재저장
+/// (doc_id/docContentsId/versionCheck 분기)은 미지원. 인자는 submit_approval과 동일.
+///
+/// ⚠️ 반증된 가설(재도입 금지): doc_sts 10/20 이 2099(HP interlock 누락)의 원인이라는 설은
+/// 반증됨 — 신규 임시저장도 create→GetLinkKey→saveAttendApplicationLinkKey→SetEnageGroup
+/// interlock 3콜을 submit과 동일하게 거친다(실측). 즉 draft는 submit에서 doc_sts만 바뀐 것.
+///
+/// ⚠️ 함정(2026-08-25 실측): 임시저장은 doc_contents_html을 **그대로 보관**하고 웹 편집기가
+/// 그걸 다시 로드한다(상신은 서버가 bind_data로 렌더하는 것과 다름). 한 줄 HTML을 넘기면
+/// 웹에서 빈 문서가 된다. 제대로 저장하려면 웹 양식이 만드는 완성 표 HTML(출장 ~22KB,
+/// inline style·contenteditable·mapping_key 포함)을 넘겨야 한다. 이 표 HTML을 여기서
+/// 생성하지 않는다 — 호출자 책임. 양식별 표 템플릿 자동생성은 미구현(향후 과제).
+pub async fn save_draft_approval(
+    c: &GwClient,
+    form_id: i64,
+    doc_title: &str,
+    line_id: i64,
+    hp_application_json: &str,
+    bind_data_json: &str,
+    doc_contents_html: &str,
+    numbering_id: &str,
+) -> Result<Value> {
+    // 임시저장 = doc_sts "10".
+    submit_or_draft(
+        c, form_id, doc_title, line_id, hp_application_json, bind_data_json,
+        doc_contents_html, numbering_id, "10",
+    )
+    .await
+}
+
+/// 상신(doc_sts "20")과 임시저장(doc_sts "10")의 공통 실행부. 두 경로는 eap110A06 페이로드의
+/// doc_sts 한 값과 성공 응답의 kind/note만 다르고 나머지(create·interlock·a03 병합·조립)는 같다.
+#[allow(clippy::too_many_arguments)]
+async fn submit_or_draft(
+    c: &GwClient,
+    form_id: i64,
+    doc_title: &str,
+    line_id: i64,
+    hp_application_json: &str,
+    bind_data_json: &str,
+    doc_contents_html: &str,
+    numbering_id: &str,
+    doc_sts: &str,
+) -> Result<Value> {
 
     let co_id = c.comp_seq();
     let dept_id = c.dept_seq();
@@ -767,7 +820,7 @@ pub async fn submit_approval(
         "co_id": co_id, "dept_id": dept_id, "biz_id": co_id, "user_id": user_id,
         // dept_nm: 브라우저는 기안부서명을 싣는다(캡처 diff의 유일한 차이였음) — 조직도 값으로 채운다.
         "co_nm": "(주)이노그리드", "dept_nm": id.dept_nm, "user_nm": user_nm,
-        "doc_title": doc_title, "doc_sts": "20", "inservice_time": "0",
+        "doc_title": doc_title, "doc_sts": doc_sts, "inservice_time": "0",
         "doc_level": "001", "emergency_level": "1", "doc_security": "0", "use_yn": "1",
         "approkey": approkey, "contents_tp": "10", "doc_contents": doc_contents,
         "pTEAG_APPDOC_LINE": line_nodes,
@@ -799,18 +852,24 @@ pub async fn submit_approval(
         .call("/eap/eap110A06", &json!({ "paramItem": param_item, "pageCode": "UBAP001" }))
         .await?;
 
+    let is_draft = doc_sts == "10";
+    let step_nm = if is_draft { "임시저장" } else { "상신" };
     let new_doc_id = submitted_doc_id(&d).ok_or_else(|| {
-        anyhow!("상신(eap110A06)이 docId를 주지 않았다 — resultData.result 없음/빈값. 서버 응답: {d}")
+        anyhow!("{step_nm}(eap110A06)이 docId를 주지 않았다 — resultData.result 없음/빈값. 서버 응답: {d}")
     })?;
     Ok(json!({
-        "kind": "approvalSubmitted",
+        "kind": if is_draft { "approvalDraftSaved" } else { "approvalSubmitted" },
         "ok": true,
         "docId": new_doc_id,
         "formId": form_id,
         "title": doc_title,
         "lineCount": line_nodes.len(),
         "referCount": refer_nodes.len(),
-        "note": "상신 성공(docId 발급 확인). 취소는 cancel_approval(docId, formId) — 상신 직후는 doc_sts=30이라 formId가 필요하다. 근태 양식은 create→GetLinkKey→saveAttendApplicationLinkKey→SetEnageGroup(HP interlock 등록) 후 eap110A06으로 상신한다. 등록 누락 시 2099(HP_HPD0110)."
+        "note": if is_draft {
+            "임시보관함 저장(doc_sts=10). 상신 아님 — 웹에서 검토 후 상신하거나 submit_approval로 상신한다. list_approvals(box_name=\"draft\")로 확인, 삭제는 delete_temp_approval. 신규 저장 전용(기존 draft 재저장 미지원)."
+        } else {
+            "상신 성공(docId 발급 확인). 취소는 cancel_approval(docId, formId) — 상신 직후는 doc_sts=30이라 formId가 필요하다. 근태 양식은 create→GetLinkKey→saveAttendApplicationLinkKey→SetEnageGroup(HP interlock 등록) 후 eap110A06으로 상신한다. 등록 누락 시 2099(HP_HPD0110)."
+        }
     }))
 }
 

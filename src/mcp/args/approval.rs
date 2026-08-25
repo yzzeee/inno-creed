@@ -181,6 +181,32 @@ pub struct SubmitApprovalArgs {
 
 #[derive(Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
+pub struct SaveDraftApprovalArgs {
+    /// 양식 ID(formId). 41(외근)/36(연차) 등.
+    #[serde(deserialize_with = "super::flex_i64")]
+    #[schemars(schema_with = "super::flex_int_schema")]
+    pub form_id: i64,
+    /// 문서 제목. ⭐ 양식별 권장 형식은 `get_approval_submission_guide(form_id).draftHelp.defaultDocTitle`/`titleHelp`. 사내 관례이므로 사용자 확인 후 확정할 것.
+    pub doc_title: String,
+    /// 사용할 개인결재라인 ID(save_approval_line으로 준비). 임시저장에도 결재선을 함께 저장한다 — eap110A03가 양식필수 합의자·수신참조·시행자와 병합한다. 라인에는 **결재(3000)만** 담을 것.
+    #[serde(deserialize_with = "super::flex_i64")]
+    #[schemars(schema_with = "super::flex_int_schema")]
+    pub line_id: i64,
+    /// HP 근태신청 저장 요청 body JSON(0hr00011 + create 두 콜에 쓰임). **근태 양식 전용** — 이걸 넘기면 임시저장 전에 HP 신청 레코드 생성 + interlock 등록(GetLinkKey→saveAttendApplicationLinkKey→SetEnageGroup)까지 수행한다(임시저장도 상신과 동일 흐름, 실측 확인). ⭐ 채우는 법은 `get_approval_submission_guide(form_id).draftHelp.hpApplicationExample`. 신원 필드는 자동 덮어씀. 빈 문자열이면 이 단계 생략(비근태 양식, 미검증).
+    pub hp_application_json: String,
+    /// 폼 본문 데이터 JSON 텍스트. `{"ITEMS":{...},"TABLE":{...}}`. ⭐ 양식별 예시는 `get_approval_submission_guide(form_id).draftHelp.bindDataExample`. 실제 문서에 렌더되는 값이 이것. 서버엔 이중인코딩되어 전송됨.
+    pub bind_data_json: String,
+    /// ⚠️ **임시저장에서는 이게 곧 본문이다** — 서버가 렌더하지 않고 그대로 보관해 웹 편집기가 다시 로드한다. 한 줄 HTML을 넘기면 웹에서 빈 문서가 된다. 웹 양식이 만드는 완성 표 HTML(출장은 출장정보 표 + 상세일정 표, inline style·contenteditable·mapping_key 포함, 약 22KB)을 넘겨야 제대로 보인다. 이 표 HTML은 자동 생성되지 않으니 호출자가 완성본을 만들어야 한다(간단한 초안은 아마란스 웹에서 저장하는 편이 낫다).
+    pub doc_contents_html: String,
+    /// 채번 규칙 ID. 빈 문자열이면 "1001"(기본 채번)이 자동 적용된다 — 보통 그대로 두면 됨.
+    #[serde(default)]
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub numbering_id: String,
+}
+
+#[derive(Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
 pub struct CancelApprovalArgs {
     /// 취소할 문서의 docId(list_approvals/read_approval의 docId).
     #[serde(deserialize_with = "super::flex_string")]

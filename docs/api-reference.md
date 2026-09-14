@@ -809,7 +809,7 @@ body: { docID:<문서번호>, formID, approkey:"ERP_<uuid>", appLineId:"", draft
 
 - ⚠️ `eap111A04`는 임시보관 문서에 **`2385`**("임시저장 된 문서 입니다")를 준다 — 첨부를 보려면 a03로 가야 한다.
 - ⚠️ 서버는 **이름과 확장자를 따로** 준다(`fileNm:"보고서"` + `fileExtsn:"pdf"`). 도구가 합쳐 `fileName`으로 낸다.
-- ⚠️ `fileList[]`(상신 문서) **항목 키는 미확인** — 첨부 든 상신 문서를 아직 못 봤다(키 실재만 확인). 상세는 `.claude-workspace/approval-analysis/07-eapproval-api-capture.md` §11.
+- **두 배열은 항목 스키마가 동일하다**(19필드 전부 일치 — 2026-09-14 실측 확정). 그래서 도구 정규화가 하나다. 상세는 `.claude-workspace/approval-analysis/07-eapproval-api-capture.md` §11.
 
 ### 첨부 다운로드 (ecm001A03) → `download_approval_attachment`
 
@@ -1022,7 +1022,11 @@ body: a10Domain=https://gw.innogrid.com        # 유일 파라미터
 ## 미조사 (다음 단계)
 
 - **전자결재(`/eap/*`)**: 읽기 3종 + 개인결재라인 CRUD + **상신·상신취소·임시보관삭제** 구현 완료(근태 4양식 순수 API e2e 실증). **미구현은 승인/반려뿐** — 조직 의사결정 행위라 의도적 제외.
-- 전자결재 첨부: **읽기(목록·다운로드)는 구현 완료**(위 절). **쓰기(파일 붙여 상신)는 여전히 미조사** — 상신 payload의 `pVCM_ATTACHFILEINFO`/`appdocFileList`는 빈 배열로 고정돼 있고 업로드 엔드포인트도 미실측.
+- 전자결재 첨부: **읽기(목록·다운로드)는 구현 완료**(위 절). 쓰기는 **절반만** 풀렸다 —
+  **업로드는 실측 확정**(`ecm001A01` multipart `file[]`, `moduleGbn`이 그대로 파일의 `type`이 된다.
+  ⚠️ 업로드는 `EAP`를 받는데 다운로드는 `BOARD`라야 한다 — 비대칭),
+  **올린 파일을 문서에 붙이는 법은 미해결**(`pVCM_ATTACHFILEINFO` 항목 구조. 저장소의 `eap110A06` 캡처
+  전량에 비어있지 않은 사례가 0건이고 `eap110A03` 응답 108KB에도 힌트가 없다). 상세는 `07 §11.5`.
 - **메신저(대화방)**: gw API 미노출 — 별도 제품(웹 통합알림 `event02A01`도 MAIL/BOARD/HPD만, 메신저 이벤트 없음). 자동화하려면 메신저 서비스 별도 리버싱 필요.
 - 메일 상세 본문·첨부는 구현 완료(read_mail/download_mail_attachment).
 - **메일·결재 검색 구현 완료** — 통합검색 `gw018A02`(위 섹션). 모듈별 전용 검색 API는 존재하지 않는다.

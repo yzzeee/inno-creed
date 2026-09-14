@@ -7,6 +7,10 @@
 //!   (body 생략 시 {}. body가 '@경로'면 파일에서 읽음.)
 //!   cargo run --quiet --bin probe -- raw '/gw/contentsImgController/download/<경로>' out.png
 //!   (raw = 응답 바이트를 파일로. 본문 삽입 이미지처럼 JSON이 아닌 응답을 볼 때.)
+//!   cargo run --quiet --bin probe -- form /ecm/ecm001A03 out.bin moduleGbn=BOARD 'authKeyMap={"fileIds":"<id>"}'
+//!   (form = x-www-form-urlencoded POST. ECM 계열이 이 형식이다. out 을 '-' 로 주면 JSON 봉투를 출력.)
+//!   cargo run --quiet --bin probe -- upload /ecm/ecm001A01 'file[]' ./a.txt moduleGbn=EAP
+//!   (upload = multipart POST. 파일 하나 + 나머지 k=v 는 텍스트 파트.)
 //!
 //! 성공판정 없이 {http, response:{resultCode,resultMsg,resultData}} 전체를 그대로 찍는다(2099 진단용).
 
@@ -117,6 +121,40 @@ async fn main() -> Result<()> {
         client.ensure_session().await?;
         let out = inno_creed::modules::approval_submit::cancel_and_verify(&client, doc_id, form_id, purge).await;
         match out {
+            Ok(v) => println!("{}", serde_json::to_string_pretty(&v)?),
+            Err(e) => println!("ERR {e}"),
+        }
+        return Ok(());
+    }
+
+    // 진단: `probe upload <path> <field> <파일> [k=v ...]` → multipart POST(ECM/메일 업로드).
+    // 파일은 하나만 싣는다. 추가 k=v 는 텍스트 파트로 함께 보낸다.
+    if args.get(1).map(|s| s.as_str()) == Some("upload") {
+        let path = args.get(2).ok_or_else(|| anyhow!("usage: probe upload <path> <field> <파일> [k=v ...]"))?;
+        let field = args.get(3).ok_or_else(|| anyhow!("usage: probe upload <path> <field> <파일> [k=v ...]"))?;
+        let file = args.get(4).ok_or_else(|| anyhow!("usage: probe upload <path> <field> <파일> [k=v ...]"))?;
+        let bytes = std::fs::read(file)?;
+        let fname = std::path::Path::new(file)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "file".into());
+        let kv: Vec<(String, String)> = args[5..]
+            .iter()
+            .filter_map(|a| a.split_once('=').map(|(k, v)| (k.to_string(), v.to_string())))
+            .collect();
+        let client = GwClient::new(creds::from_browser().ok());
+        client.ensure_session().await?;
+        let make = || {
+            let part = reqwest::multipart::Part::bytes(bytes.clone())
+                .file_name(fname.clone())
+                .mime_str("application/octet-stream")
+                .expect("고정 MIME");
+            kv.iter()
+                .fold(reqwest::multipart::Form::new().part(field.clone(), part), |f, (k, v)| {
+                    f.text(k.clone(), v.clone())
+                })
+        };
+        match client.call_multipart(path, make).await {
             Ok(v) => println!("{}", serde_json::to_string_pretty(&v)?),
             Err(e) => println!("ERR {e}"),
         }

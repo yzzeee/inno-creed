@@ -149,9 +149,10 @@ pub async fn read_approval(c: &GwClient, doc_id: &str, form_id: &str) -> Result<
 ///
 /// 그래서 a04를 먼저 부르고 2385면 a03로 폴백한다. 호출자가 문서 상태를 미리 알 필요는 없다.
 ///
-/// ⚠️ `fileList[]`(상신 문서) 항목의 **키 이름은 미확인**이다 — 첨부가 든 상신 문서를 아직 못 봤다
-/// (키 자체가 실재하는 것만 확인: 첨부 0 문서에서 `[]`). `fileAttachInfo`와 같은 모양을 가정하되
-/// 파일명 후보를 몇 개 더 받아 둔다. 실물이 생기면 07 §11.1을 갱신할 것.
+/// 두 배열은 **항목 스키마가 완전히 같다**(2026-09-14 실측, 19필드 전부 일치 —
+/// `fileId`/`fileKey`/`fileNm`/`dispFileNm`/`fileExtsn`/`fileSize`/`fileSeq`/`fileDiv`/`docId`/
+/// `createdBy`/`createdDt`/`filePath`/`oldFileId`/`linkUrl`/`etcSeq`/`modifyBy`/`modifyDt`/`verId`/`fileSizeByte`).
+/// 그래서 정규화 하나로 양쪽을 처리한다.
 pub async fn list_attachments(c: &GwClient, doc_id: &str, form_id: &str) -> Result<Value> {
     let a04 = c
         .call_raw(
@@ -208,7 +209,7 @@ pub async fn list_attachments(c: &GwClient, doc_id: &str, form_id: &str) -> Resu
 fn normalize_attachment(f: &Value) -> Value {
     let g = |k: &str| json_str(f.get(k));
     let ext = g("fileExtsn");
-    // 이름 후보: fileNm(임시보관 실측) → originalFileName(ecm001A04) → dispFileNm.
+    // 이름 후보: fileNm(eap110A03·eap111A04 공통) → originalFileName(ecm001A04) → dispFileNm.
     let base = [g("fileNm"), g("originalFileName"), g("dispFileNm")]
         .into_iter()
         .find(|s| !s.is_empty())

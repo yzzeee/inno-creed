@@ -40,7 +40,7 @@ impl Amaranth {
     }
 
     #[tool(
-        description = "전자결재 문서 1건의 본문(평문)·헤더·결재선을 조회한다(열람 부작용 없음). doc_id+form_id는 list_approvals 결과 사용."
+        description = "전자결재 문서 1건의 본문(평문)·헤더·결재선을 조회한다(열람 부작용 없음). doc_id+form_id는 list_approvals 결과 사용. ⚠️ 첨부는 **개수(`attachCount`)만** 나온다 — 파일명·다운로드가 필요하면 `list_approval_attachments(doc_id, form_id)`를 이어서 부를 것(거기서 얻은 `fileId`가 `download_approval_attachment`의 열쇠다)."
     )]
     async fn read_approval(
         &self,

@@ -9,7 +9,8 @@
 Claude Desktop 앱(채팅·Cowork·Code 탭)에서 쓸 거라면, 아래 1~6번의 JSON 편집을 직접 할 필요가 없습니다.
 
 1. [릴리즈](https://github.com/zilhak/inno-creed/releases/latest)에서 `inno-creed-installer-<OS>.zip`을 받습니다.
-   - Windows: `inno-creed-installer-windows-x86_64.zip`
+   - Windows x64: `inno-creed-installer-windows-x86_64.zip`
+   - Windows ARM64: `inno-creed-installer-windows-aarch64.zip`
    - macOS: `inno-creed-installer-macos-arm64.zip`
    - Linux: `inno-creed-installer-linux-x86_64.zip` / `-linux-aarch64.zip`
 2. **압축을 통째로 풉니다.** 안에 `installer`(Windows는 `installer.exe`)와 `payload/` 폴더가 나란히 들어있는데, **이 둘을 같은 자리에 둔 채로** `installer`를 실행하세요 — `installer`만 다른 곳으로 옮기면 설치할 파일을 못 찾습니다.
@@ -30,6 +31,34 @@ Claude Desktop 앱(채팅·Cowork·Code 탭)에서 쓸 거라면, 아래 1~6번�
 > **Claude Code CLI(터미널)만 쓸 거라면** 이 인스톨러 대신 [3번](#3-mcp-클라이언트에-등록)의 `claude mcp add` 한 줄이 더 간단합니다. GUI 인스톨러는 Claude Desktop의 설정 파일(`claude_desktop_config.json`)에 등록하는 방식이라 데스크톱 앱 계열(채팅·Cowork·Code)을 겨냥합니다.
 >
 > GUI 인스톨러가 안 되거나(사내 정책으로 실행 파일이 막힘 등), 직접 확인하며 진행하고 싶다면 아래 1번부터 수동으로 진행하세요.
+
+### 그래픽 드라이버 오류가 날 때 — 터미널 설치
+
+> `--cli`는 v2.2.0부터 지원합니다.
+
+`installer --cli`는 그래픽을 초기화하지 않고 Claude Desktop용 설치를 터미널에서 진행합니다. `installer`와 `payload/`를 함께 둔 채로 실행하세요.
+
+Windows PowerShell에서는 GUI 실행 파일이 끝날 때까지 기다리도록 다음 명령을 사용합니다.
+
+```powershell
+Start-Process .\installer.exe -ArgumentList '--cli' -NoNewWindow -Wait
+```
+
+macOS/Linux:
+
+```sh
+./installer --cli
+```
+
+설정 파일 후보를 확인하고, 다른 파일을 쓰려면 전체 경로를 입력합니다. 설치 위치는 Enter로 기본값을 사용하거나, 다른 상위 폴더를 입력하면 그 안의 `inno-creed` 폴더를 사용합니다. 설치 확인에서 `y`를 입력해야 파일을 복사하고 설정을 백업·등록합니다. Claude Desktop이 켜져 있으면 종료 후 다시 확인합니다. Windows 확장 프로그램 등록 안내와 선택적 `doctor` 인증 진단도 제공됩니다. Ctrl+C로 중단할 수 있습니다.
+
+터미널에서 제거하려면 `./installer --cli --uninstall`을 사용합니다. Windows PowerShell에서는:
+
+```powershell
+Start-Process .\installer.exe -ArgumentList '--cli','--uninstall' -NoNewWindow -Wait
+```
+
+제거 시 설치했던 위치를 선택하세요. 선택한 `inno-creed` 폴더의 파일을 삭제하므로 확인된 대상 폴더를 읽고 진행하세요. 설정 파일을 찾지 못하면 `-`로 등록 해제를 건너뛸 수 있으며, 이 경우 Claude Desktop 설정에 남은 등록은 직접 정리해야 합니다.
 
 ---
 
@@ -53,7 +82,7 @@ https://github.com/zilhak/inno-creed
 - **이노그리드 사내 계정.**
 - **(Windows 권장) Chrome/Edge 확장 프로그램** — 4번 참고. 안 쓰면 쿠키 DB를 직접 읽는데, Windows에서는 세션쿠키·파일잠금·`v20` 암호화 때문에 구조적으로 잘 안 됩니다.
 
-지원 바이너리: **macOS(Apple Silicon)**, **Linux x86_64 / aarch64**, **Windows x86_64**.
+지원 바이너리: **macOS(Apple Silicon)**, **Linux x86_64 / aarch64**, **Windows x86_64 / ARM64**.
 > Intel 맥용 바이너리는 제공하지 않습니다(필요하면 [소스 빌드](#부록-소스-빌드)).
 
 > **(Linux) `libsecret-tools`가 필요합니다.** Chrome 쿠키를 GNOME Keyring/KWallet에서
@@ -73,6 +102,7 @@ https://github.com/zilhak/inno-creed
 | Linux x86_64 | `inno-creed-linux-x86_64` |
 | Linux aarch64 | `inno-creed-linux-aarch64` |
 | Windows x86_64 | `inno-creed-windows-x86_64.exe` |
+| Windows ARM64 | `inno-creed-windows-aarch64.exe` |
 | **(Windows 권장) 확장 프로그램** | `inno-creed-extension.zip` — 4번에서 씁니다 |
 
 > 위는 **수동 설치용 맨 바이너리**입니다. GUI 인스톨러(`inno-creed-installer-<OS>.zip`, [0번](#0-비개발자라면--gui-인스톨러-권장))를 쓴다면 이 표의 파일은 받을 필요가 없습니다 — 인스톨러 zip이 `payload/` 안에 실행 파일을(Windows는 확장 프로그램까지) 이미 담고 있습니다.
@@ -99,9 +129,9 @@ chmod +x inno-creed-linux-*
 mkdir -p ~/bin && mv inno-creed-linux-* ~/bin/inno-creed
 ```
 
-### Windows (x86_64)
+### Windows (x86_64 / ARM64)
 
-1. `inno-creed-windows-x86_64.exe`를 원하는 폴더로 옮깁니다(예: `C:\Tools\inno-creed.exe`).
+1. x64 PC는 `inno-creed-windows-x86_64.exe`, ARM64 PC는 `inno-creed-windows-aarch64.exe`를 받아 원하는 폴더로 옮깁니다(예: `C:\Tools\inno-creed.exe`).
 2. 처음 실행 시 SmartScreen **"Windows가 PC를 보호했습니다"** 창이 뜨면 → **추가 정보 → 실행**.
 
 ---

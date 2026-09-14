@@ -7,6 +7,7 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod app;
+mod cli;
 mod fatal;
 mod install;
 mod payload;
@@ -14,6 +15,10 @@ mod payload;
 mod registry;
 
 fn main() {
+    // GPU 드라이버와 GUI 오류 대화상자에 진입하기 전에 터미널 모드를 분기한다.
+    if std::env::args().any(|a| a == "--cli") {
+        std::process::exit(cli::main());
+    }
     // 무엇보다 먼저. 이 아래에서 벌어지는 어떤 실패도 창으로 보이게 하는 장치다.
     fatal::install_panic_hook();
 
@@ -22,8 +27,8 @@ fn main() {
             "설치 프로그램 창을 띄우지 못했습니다.\n\n\
              내용: {err}\n\
              (원문: {err:?})\n\n\
-             그래픽 초기화 실패라면 아래를 PowerShell에서 실행해 우회할 수 있습니다.\n\
-             \x20 $env:WGPU_BACKEND=\"dx12\"; .\\installer.exe"
+             그래픽 없이 설치하려면 터미널에서 installer --cli를 실행하세요.\n\
+             PowerShell: Start-Process .\\installer.exe -ArgumentList '--cli' -NoNewWindow -Wait"
         ));
         std::process::exit(1);
     }

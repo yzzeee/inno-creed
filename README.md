@@ -197,8 +197,11 @@ Claude Desktop(채팅·Cowork·Code 탭)에서 쓸 거라면, JSON을 직접 안
 | Linux x86_64 | `inno-creed-installer-linux-x86_64.zip` |
 | Linux aarch64 | `inno-creed-installer-linux-aarch64.zip` |
 | Windows x86_64 | `inno-creed-installer-windows-x86_64.zip` |
+| Windows ARM64 | `inno-creed-installer-windows-aarch64.zip` |
 
 압축을 풀면 나오는 `installer`(Windows는 `installer.exe`)를 실행하세요. **`installer`와 `payload/` 폴더를 같은 자리에 둔 채로 실행해야 합니다** — `installer`만 따로 옮기면 설치할 파일을 못 찾습니다. 자세한 화면별 안내는 [`docs/INSTALL.md`](docs/INSTALL.md) 참고. Claude Code CLI 전용으로만 쓸 거라면 아래 프리빌트 바이너리 방식이 더 간단합니다.
+
+그래픽 드라이버 오류로 창이 뜨지 않으면 v2.2.0부터 `installer --cli`로 터미널에서 설치할 수 있습니다. Windows PowerShell에서는 `Start-Process .\installer.exe -ArgumentList '--cli' -NoNewWindow -Wait`를 실행하세요. 제거는 `--cli --uninstall`입니다.
 
 ### 프리빌트 바이너리
 
@@ -210,6 +213,7 @@ Claude Desktop(채팅·Cowork·Code 탭)에서 쓸 거라면, JSON을 직접 안
 | Linux x86_64 | `inno-creed-linux-x86_64` |
 | Linux aarch64 | `inno-creed-linux-aarch64` |
 | Windows x86_64 | `inno-creed-windows-x86_64.exe` |
+| Windows ARM64 | `inno-creed-windows-aarch64.exe` |
 | **(Windows 권장) 확장 프로그램** | `inno-creed-extension.zip` |
 
 macOS·Linux는 내려받은 뒤 실행 권한을 부여하세요: `chmod +x inno-creed-*`. (macOS에서 Gatekeeper가 막으면 `xattr -d com.apple.quarantine <파일>`.)
@@ -222,6 +226,15 @@ cargo build --release   # → target/release/inno-creed (Windows는 inno-creed.e
 ```
 
 **Rust 1.96+** (edition 2024, 번들 `libsqlite3-sys`가 최신 toolchain 요구)와 **C 컴파일러**(rusqlite 번들 SQLite 컴파일용)가 필요합니다.
+
+Windows x64에서 ARM64용으로 빌드하려면 Visual Studio의 ARM64 C++ 빌드 도구와 Windows SDK를 설치한 뒤 다음을 실행합니다.
+
+```powershell
+rustup target add aarch64-pc-windows-msvc
+cargo build --locked --release --bin inno-creed --target aarch64-pc-windows-msvc
+cargo build --locked --release -p installer --target aarch64-pc-windows-msvc
+powershell -File scripts/package-installer.ps1 -Target aarch64-pc-windows-msvc -OutDir .claude/dist
+```
 
 **커밋 전에는 다음 두 명령을 돌립니다.** CI가 없어 사람이 놓치면 그대로 쌓입니다. `crates/config-kit`·`installer`도 포함하려면 `--workspace`가 필요합니다.
 

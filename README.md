@@ -79,6 +79,7 @@
 | `pending_approvals` | **미결 요약** — 제목·기안자·대기일수(오래 기다린 순) |
 | `list_approvals` | 함별 문서 목록(미결/기결/수신참조/시행/상신) |
 | `read_approval` | 문서 1건 본문(평문)·헤더·결재선 (열람 부작용 없음) |
+| `list_approval_attachments` / `download_approval_attachment` | 결재 첨부 목록 / 다운로드 — 상신문서·임시보관 양쪽 (⚠️ 다운로드는 `fileId` 단건씩) |
 | `approval_counts` | 함별 미처리 건수(숫자만 — 내용까지 보려면 `pending_approvals`) |
 | `submit_approval` | 문서 상신 — ⚠️ 실제 결재요청 통지 발송 |
 | `cancel_approval` | 상신 취소 — 상태별 3단계(결재취소→상신취소→`purge` 시 삭제) |
@@ -275,7 +276,7 @@ inno-creed (Rust MCP 서버, 헤드리스)
  ├─ client   세션 lazy 취득(10분 TTL 캐시) · 헤더 주입 · POST · 응답 파싱
  ├─ modules  자원 · 일정 · 메일 · 게시판 · 전자결재 · 근태 · 조직
  │           API 래퍼 + 파생 조회 + 소유권 가드 · read-back 검증
- └─ mcp      rmcp stdio 서버 — tools/(도구 55개, 도메인별) · args/(인자 스키마) · 에러 변환
+ └─ mcp      rmcp stdio 서버 — tools/(도구 57개, 도메인별) · args/(인자 스키마) · 에러 변환
 ```
 
 크레덴셜만 브라우저에서 빌려오고, 실행은 전부 순수 HTTP입니다. 서명·세션 규격은 [architecture.md](docs/architecture.md)에 정리돼 있습니다.

@@ -904,6 +904,47 @@ def body(mcp: Mcp, fx: dict, marker: str):
     else:
         skip("read_approval", "수신참조함에 문서 없음")
 
+    # 첨부: 첨부가 달린 결재 문서는 흔치 않다(휴가·출장 양식은 첨부를 안 쓴다).
+    # 그래서 대상은 하드코딩하지 않고 **여러 함을 훑어 fileCount>0 을 찾는다** — 못 찾으면 SKIP.
+    att_doc = None
+    for box in ("draft", "reference", "sent", "approved"):
+        st, box_data, *_ = mcp.call("list_approvals", box_name=box, page_size=50)
+        if st != "OK":
+            continue
+        for d in box_data.get("documents") or []:
+            if str(d.get("fileCount") or "0").strip() not in ("", "0"):
+                att_doc = d
+                break
+        if att_doc:
+            break
+    if att_doc:
+        st, atts, *_ = mcp.call("list_approval_attachments",
+                                doc_id=str(att_doc["docId"]), form_id=str(att_doc.get("formId", "")))
+        if st == "OK" and atts.get("files"):
+            R.append(("PASS", "list_approval_attachments",
+                      f"{atts['count']}건 · source={atts['source']}"))
+            f0 = atts["files"][0]
+            # 파일명은 서버가 이름/확장자를 따로 주는 것을 도구가 합친 결과다 — 합쳐졌는지 같이 본다.
+            run(mcp, "download_approval_attachment", lambda d: (
+                d["ok"] and d["bytes"] > 0, f"{d['bytes']}B · {d['serverFileName']}"),
+                file_id=f0["fileId"], out_path=os.path.join(OUTDIR, "approval_att.bin"))
+            # ⛔ fileIds 를 2개 주면 서버가 에러 대신 zip 을 준다 — 도구가 막아야 한다.
+            if len(atts["files"]) >= 2:
+                two = f0["fileId"] + "," + atts["files"][1]["fileId"]
+                bad2 = mcp.call("download_approval_attachment", file_id=two,
+                                out_path=os.path.join(OUTDIR, "must_not_zip.bin"))
+                if bad2[0] == "ERR" and not os.path.exists(os.path.join(OUTDIR, "must_not_zip.bin")):
+                    R.append(("PASS", "download_approval_attachment(콤마 거부)", "zip 함정 차단 · 파일 미생성"))
+                else:
+                    R.append(("FAIL", "download_approval_attachment(콤마 거부)",
+                              f"콤마가 통과했다 — zip 을 단건으로 받는다: {bad2}"))
+        else:
+            R.append(("FAIL", "list_approval_attachments",
+                      f"fileCount>0 인 문서({att_doc['docId']})인데 첨부가 안 나왔다: {atts}"))
+    else:
+        skip("list_approval_attachments", "첨부 달린 결재 문서를 못 찾음")
+        skip("download_approval_attachment", "첨부 달린 결재 문서를 못 찾음")
+
     if lines and lines["lines"]:
         run(mcp, "read_approval_line", lambda d: (len(json.dumps(d)) > 100, "members 반환"),
             line_id=str(lines["lines"][0]["lineId"]))

@@ -60,4 +60,32 @@ impl Amaranth {
             .map_err(map_domain_err)?;
         Ok(CallToolResult::success(vec![ContentBlock::text(data.to_string())]))
     }
+
+    #[tool(
+        description = "결재 문서의 첨부파일 목록을 조회한다(다운로드는 download_approval_attachment). read_approval은 개수(attachCount)만 주므로 실제 파일은 이쪽으로 본다. 상신된 문서와 임시보관 문서는 서버 API가 다르지만 이 도구가 알아서 고른다. 결과 `files[].fileId`가 다운로드 열쇠다."
+    )]
+    async fn list_approval_attachments(
+        &self,
+        Parameters(a): Parameters<ListApprovalAttachmentsArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.ensure_session().await?;
+        let data = modules::approval::list_attachments(&self.client, &a.doc_id, &a.form_id)
+            .await
+            .map_err(map_domain_err)?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(data.to_string())]))
+    }
+
+    #[tool(
+        description = "결재 첨부파일 1건을 다운로드해 out_path에 저장한다. **file_id 는 list_approval_attachments 결과 `files[].fileId`** — ⚠️ 게시판 download_notice_attachment의 file_sn(0-base 인덱스)과도, 메일 쪽 file_sn과도 다르다(결재는 fileId가 유일한 셀렉터). 한 번에 1건만 받을 수 있다."
+    )]
+    async fn download_approval_attachment(
+        &self,
+        Parameters(a): Parameters<DownloadApprovalAttachmentArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.ensure_session().await?;
+        let data = modules::approval::download_attachment(&self.client, &a.file_id, &a.out_path)
+            .await
+            .map_err(map_domain_err)?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(data.to_string())]))
+    }
 }

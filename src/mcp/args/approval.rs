@@ -117,6 +117,31 @@ pub struct DeleteApprovalLineArgs {
 
 #[derive(Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
+pub struct ListApprovalAttachmentsArgs {
+    /// 문서 ID(docId). list_approvals 결과의 docId.
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub doc_id: String,
+    /// 양식 ID(formId). list_approvals 결과의 formId.
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub form_id: String,
+}
+
+#[derive(Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct DownloadApprovalAttachmentArgs {
+    /// list_approval_attachments 결과 `files[].fileId`(32자 토큰)를 그대로.
+    /// ⚠️ 1건만 — 콤마로 여러 개를 주면 서버가 zip으로 묶어 보내므로 도구가 거부한다.
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub file_id: String,
+    /// 저장 경로(절대경로 권장). 예: /tmp/approval.pdf
+    pub out_path: String,
+}
+
+#[derive(Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
 pub struct SubmitApprovalArgs {
     /// 양식 ID(formId). 41(외근)/36(연차) 등.
     #[serde(deserialize_with = "super::flex_i64")]

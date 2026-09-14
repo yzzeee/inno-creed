@@ -791,6 +791,43 @@ body(JSON): { doc_id, form_id, bindType:"V", setReadYn:"N",   # N=열람 부작�
 
 - 도구는 `contentsWord`(평문) 우선, 없으면 `docContents` 태그제거. `user_info[]`는 처리시각/여부(이름 미노출→코드).
 
+### 첨부 목록 → `list_approval_attachments`
+
+첨부 배열이 **문서 상태에 따라 다른 API**에서 나온다. 도구가 a04 → (2385면) a03 순으로 알아서 고른다.
+
+| 문서 상태 | API | 배열 |
+|---|---|---|
+| 상신됨 | `eap111A04` | `resultData.fileList[]` |
+| 임시보관(doc_sts 10) | `eap110A03` (`docID`=문서번호) | `resultData.resultMap.fileAttachInfo[]` |
+
+```
+POST /eap/eap110A03
+body: { docID:<문서번호>, formID, approkey:"ERP_<uuid>", appLineId:"", draftTp:"", reDraft:"",
+        docType:"", doc_auth:0, pageCode:"UBAP001" }
+→ resultMap.fileAttachInfo[]: { fileId, fileKey, fileNm, dispFileNm, fileExtsn, fileSize, fileSeq, docId, ... }
+```
+
+- ⚠️ `eap111A04`는 임시보관 문서에 **`2385`**("임시저장 된 문서 입니다")를 준다 — 첨부를 보려면 a03로 가야 한다.
+- ⚠️ 서버는 **이름과 확장자를 따로** 준다(`fileNm:"보고서"` + `fileExtsn:"pdf"`). 도구가 합쳐 `fileName`으로 낸다.
+- ⚠️ `fileList[]`(상신 문서) **항목 키는 미확인** — 첨부 든 상신 문서를 아직 못 봤다(키 실재만 확인). 상세는 `.claude-workspace/approval-analysis/07-eapproval-api-capture.md` §11.
+
+### 첨부 다운로드 (ecm001A03) → `download_approval_attachment`
+
+```
+POST /ecm/ecm001A03   (x-www-form-urlencoded)
+  moduleGbn=BOARD                      # ⚠️ 결재 전용 moduleGbn은 존재하지 않는다
+  authKeyMap={"fileIds":"<fileId>"}    # 유일한 셀렉터
+→ 파일 바이트 + Content-Disposition
+```
+
+- **`moduleGbn=BOARD`가 맞다.** 12개를 전수 시도해 `BOARD`만 통과했다(`EAP`·`MAIL`은 10197 권한 에러,
+  `EAPPROVAL`·`APPROVAL` 등은 10522 미등록). ECM이 파일에 `type:"eap"`를 달고 있어 모듈 판별은 서버가
+  하고 `moduleGbn`은 권한 핸들러 선택자일 뿐인 것으로 보인다 — **게시판 권한 경로를 빌려 쓰는 셈**이라
+  서버가 조이면 10197로 막힐 수 있다.
+- 게시판·메일이 싣는 **`fileSn`·`condition`은 무시된다**(생략해도 동작).
+- ⚠️ **`fileIds`에 2개 이상을 주면 에러가 아니라 `downLoad.zip`(묶음)이 온다.** 단건을 기대한 호출자가
+  깨진 파일을 얻으므로 도구가 콤마 입력을 **거부**한다.
+
 ### 미처리 카운트 → `approval_counts`
 
 ```
@@ -985,7 +1022,7 @@ body: a10Domain=https://gw.innogrid.com        # 유일 파라미터
 ## 미조사 (다음 단계)
 
 - **전자결재(`/eap/*`)**: 읽기 3종 + 개인결재라인 CRUD + **상신·상신취소·임시보관삭제** 구현 완료(근태 4양식 순수 API e2e 실증). **미구현은 승인/반려뿐** — 조직 의사결정 행위라 의도적 제외.
-- 전자결재 첨부(문서에 파일 붙여 상신)는 미조사 — 상신 payload의 `fileGroup`/`attachCnt` 자리만 확인.
+- 전자결재 첨부: **읽기(목록·다운로드)는 구현 완료**(위 절). **쓰기(파일 붙여 상신)는 여전히 미조사** — 상신 payload의 `pVCM_ATTACHFILEINFO`/`appdocFileList`는 빈 배열로 고정돼 있고 업로드 엔드포인트도 미실측.
 - **메신저(대화방)**: gw API 미노출 — 별도 제품(웹 통합알림 `event02A01`도 MAIL/BOARD/HPD만, 메신저 이벤트 없음). 자동화하려면 메신저 서비스 별도 리버싱 필요.
 - 메일 상세 본문·첨부는 구현 완료(read_mail/download_mail_attachment).
 - **메일·결재 검색 구현 완료** — 통합검색 `gw018A02`(위 섹션). 모듈별 전용 검색 API는 존재하지 않는다.
@@ -1018,6 +1055,7 @@ body: a10Domain=https://gw.innogrid.com        # 유일 파라미터
 |---|---|---|
 | `download_notice_attachment.file_sn` | **0-base 인덱스**(정수) | `list_notice_attachments` → `files[].fileSn` |
 | `download_mail_attachment.file_sn` | **서버 토큰 문자열**(긴 base64류) | `read_mail` → `attachments[].fileSn` |
+| `download_approval_attachment.file_id` | **ECM fileId**(32자 토큰) — 인덱스도 순번도 아니다 | `list_approval_attachments` → `files[].fileId` |
 
 옛 이름 `download_attachment` 가 `download_mail_attachment` 와 같은 뿌리를 써서 순번을 넣었다가 **HTTP 422**를 맞았다.
 → 도구 이름에 도메인을 박아(`download_notice_attachment`) 뿌리 충돌 자체를 없앴다. 다만 **인자 이름 `file_sn`은

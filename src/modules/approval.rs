@@ -142,6 +142,128 @@ pub async fn read_approval(c: &GwClient, doc_id: &str, form_id: &str) -> Result<
     }))
 }
 
+/// 결재 문서의 첨부 목록. **문서 상태에 따라 나오는 API가 다르다**(07 §11.1):
+/// - 상신됨(doc_sts 20↑): `eap111A04`의 `fileList[]`
+/// - 임시보관(doc_sts 10): `eap111A04`가 **2385로 거부**("임시저장 된 문서") → `eap110A03`에
+///   `docID`를 실어 부르면 `resultMap.fileAttachInfo[]`로 나온다.
+///
+/// 그래서 a04를 먼저 부르고 2385면 a03로 폴백한다. 호출자가 문서 상태를 미리 알 필요는 없다.
+///
+/// ⚠️ `fileList[]`(상신 문서) 항목의 **키 이름은 미확인**이다 — 첨부가 든 상신 문서를 아직 못 봤다
+/// (키 자체가 실재하는 것만 확인: 첨부 0 문서에서 `[]`). `fileAttachInfo`와 같은 모양을 가정하되
+/// 파일명 후보를 몇 개 더 받아 둔다. 실물이 생기면 07 §11.1을 갱신할 것.
+pub async fn list_attachments(c: &GwClient, doc_id: &str, form_id: &str) -> Result<Value> {
+    let a04 = c
+        .call_raw(
+            "/eap/eap111A04",
+            &json!({
+                "doc_id": doc_id, "form_id": form_id, "bindType": "V", "p_doc_id": 0,
+                "doc_auth": "0", "spDocId": "", "setReadYn": "N", "commentReqYn": "N",
+                "pageCode": "UBA1100", "docToken": ""
+            }),
+        )
+        .await?;
+    let code = a04.pointer("/response/resultCode").and_then(|v| v.as_i64()).unwrap_or(-1);
+
+    let (raw, source) = if code == 0 {
+        let list = a04
+            .pointer("/response/resultData/fileList")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        (list, "eap111A04.fileList")
+    } else if code == 2385 {
+        // 임시보관 문서 — 결재작성 화면 경로로 불러온다. docID를 0이 아닌 실제 문서번호로.
+        let d = c
+            .call(
+                "/eap/eap110A03",
+                &json!({
+                    "docID": doc_id.parse::<i64>().unwrap_or(0),
+                    "formID": form_id, "approkey": crate::modules::approval_submit::gen_approkey(),
+                    "appLineId": "", "draftTp": "", "reDraft": "", "docType": "",
+                    "doc_auth": 0, "pageCode": "UBAP001"
+                }),
+            )
+            .await?;
+        let list = d
+            .pointer("/resultMap/fileAttachInfo")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        (list, "eap110A03.fileAttachInfo")
+    } else {
+        let msg = a04
+            .pointer("/response/resultMsg")
+            .and_then(|v| v.as_str())
+            .unwrap_or("(no msg)");
+        return Err(anyhow!("eap111A04 실패: resultCode={code} msg={msg}"));
+    };
+
+    let files: Vec<Value> = raw.iter().map(normalize_attachment).collect();
+    Ok(json!({ "docId": doc_id, "source": source, "count": files.len(), "files": files }))
+}
+
+/// 첨부 항목 정규화. `fileId`가 다운로드의 유일한 열쇠라 그것을 앞세운다.
+/// ⚠️ 서버는 이름과 확장자를 **따로** 준다(`fileNm:"test 복사본"` + `fileExtsn:"md"`) — 합쳐야 파일명이 된다.
+fn normalize_attachment(f: &Value) -> Value {
+    let g = |k: &str| json_str(f.get(k));
+    let ext = g("fileExtsn");
+    // 이름 후보: fileNm(임시보관 실측) → originalFileName(ecm001A04) → dispFileNm.
+    let base = [g("fileNm"), g("originalFileName"), g("dispFileNm")]
+        .into_iter()
+        .find(|s| !s.is_empty())
+        .unwrap_or_default();
+    let name = if ext.is_empty() || base.to_lowercase().ends_with(&format!(".{}", ext.to_lowercase())) {
+        base.clone()
+    } else {
+        format!("{base}.{ext}")
+    };
+    json!({
+        "fileId": g("fileId"),
+        "fileName": name,
+        "fileExt": ext,
+        "fileSize": f.get("fileSize").cloned().unwrap_or(Value::Null),
+        "fileSeq": f.get("fileSeq").cloned().unwrap_or(Value::Null)
+    })
+}
+
+/// 결재 첨부 1건 다운로드 — `/ecm/ecm001A03` (07 §11.2).
+///
+/// **결재 전용 `moduleGbn`은 존재하지 않는다.** 12개를 전수 시도해 `BOARD`만 통과했다
+/// (`EAP`/`MAIL`은 10197 권한 에러, 나머지는 10522 미등록). ECM이 파일에 `type:"eap"`를
+/// 달고 있어 모듈 판별은 서버가 하고, `moduleGbn`은 권한 핸들러 선택자일 뿐이기 때문으로 보인다.
+/// ⚠️ 즉 이건 게시판 권한 경로를 빌려 쓰는 것이다 — 서버가 조이면 10197로 막힐 수 있다.
+///
+/// 게시판·메일이 싣는 `fileSn`·`condition`은 **결재 첨부에선 무시**되므로 보내지 않는다.
+pub async fn download_attachment(c: &GwClient, file_id: &str, out_path: &str) -> Result<Value> {
+    let id = file_id.trim();
+    if id.is_empty() {
+        return Err(crate::error::InvalidInput::new("file_id가 비어있습니다 (list_approval_attachments의 files[].fileId)").into());
+    }
+    // ⚠️ 조용한 함정 방지(07 §11.3): fileIds에 2개 이상을 주면 서버가 에러 대신
+    // **downLoad.zip**(묶음)을 내려준다. 단건을 기대한 호출자가 깨진 파일을 얻게 되므로 미리 막는다.
+    if id.contains(',') {
+        return Err(crate::error::InvalidInput::new(
+            "file_id는 1건만 줄 수 있습니다 — 콤마로 여러 개를 주면 서버가 zip으로 묶어 보냅니다. 파일마다 따로 호출하세요.",
+        )
+        .into());
+    }
+    let auth = json!({ "fileIds": id }).to_string();
+    let (size, srv_name) = c
+        .download_form(
+            "/ecm/ecm001A03",
+            &[("moduleGbn", "BOARD"), ("authKeyMap", &auth)],
+            out_path,
+        )
+        .await?;
+    Ok(json!({
+        "ok": true,
+        "path": out_path,
+        "bytes": size,
+        "serverFileName": srv_name.unwrap_or_default()
+    }))
+}
+
 /// 함별 미처리 건수 — `/eap/api/getMenuCountInfo`. companyInfo 필요(ensure_session 선행).
 /// menuNo→count 맵을 사람이 읽기 쉬운 라벨로 변환.
 pub async fn approval_counts(c: &GwClient) -> Result<Value> {

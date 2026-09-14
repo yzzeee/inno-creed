@@ -830,7 +830,8 @@ fn norm_participant(src: &Value) -> Value {
 }
 
 /// approkey = "ERP_<uuid4-ish>" — 16 랜덤바이트를 uuid 포맷으로.
-fn gen_approkey() -> String {
+/// (첨부 목록 조회도 `eap110A03`를 부르므로 `approval` 모듈이 같이 쓴다 — 07 §11.1.)
+pub(crate) fn gen_approkey() -> String {
     let b: [u8; 16] = rand::random();
     format!(
         "ERP_{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",

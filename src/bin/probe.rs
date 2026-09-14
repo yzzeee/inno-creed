@@ -123,6 +123,32 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    // 진단: `probe form <path> <out|-> k=v ...` → x-www-form-urlencoded POST(ECM 계열).
+    // out="-" 이면 JSON 봉투를 출력, 아니면 응답 바이트를 그 파일로 저장.
+    if args.get(1).map(|s| s.as_str()) == Some("form") {
+        let path = args.get(2).ok_or_else(|| anyhow!("usage: probe form <path> <out|-> k=v ..."))?;
+        let out = args.get(3).ok_or_else(|| anyhow!("usage: probe form <path> <out|-> k=v ..."))?;
+        let kv: Vec<(String, String)> = args[4..]
+            .iter()
+            .filter_map(|a| a.split_once('=').map(|(k, v)| (k.to_string(), v.to_string())))
+            .collect();
+        let params: Vec<(&str, &str)> = kv.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let client = GwClient::new(creds::from_browser().ok());
+        client.ensure_session().await?;
+        if out == "-" {
+            match client.call_form(path, &params).await {
+                Ok(v) => println!("{}", serde_json::to_string_pretty(&v)?),
+                Err(e) => println!("ERR {e}"),
+            }
+        } else {
+            match client.download_form(path, &params, out).await {
+                Ok((n, name)) => println!("{{\"bytes\":{n},\"filename\":{name:?}}}"),
+                Err(e) => println!("ERR {e}"),
+            }
+        }
+        return Ok(());
+    }
+
     // 진단: `probe raw <path> <out>` → 응답 **바이트**를 파일로. JSON이 아닌 응답(이미지 등) 확인용.
     if args.get(1).map(|s| s.as_str()) == Some("raw") {
         let path = args.get(2).ok_or_else(|| anyhow!("usage: probe raw <path> <out>"))?;

@@ -811,6 +811,28 @@ body: { docID:<문서번호>, formID, approkey:"ERP_<uuid>", appLineId:"", draft
 - ⚠️ 서버는 **이름과 확장자를 따로** 준다(`fileNm:"보고서"` + `fileExtsn:"pdf"`). 도구가 합쳐 `fileName`으로 낸다.
 - **두 배열은 항목 스키마가 동일하다**(19필드 전부 일치 — 2026-09-14 실측 확정). 그래서 도구 정규화가 하나다. 상세는 `.claude-workspace/approval-analysis/07-eapproval-api-capture.md` §11.
 
+### 첨부 업로드 (ecm001A01) → `submit_approval.attachments`
+
+```
+POST /ecm/ecm001A01   (multipart/form-data)
+  file[]=<파일>          # 필드명 고정. file/uploadFile 은 999 "필수 파라미터(file[]) 누락"
+  moduleGbn=EAP         # 이 값이 그대로 파일의 type 이 된다
+→ resultData.list[0].fileId
+```
+
+그 `fileId`로 상신 payload의 `pVCM_ATTACHFILEINFO` 항목을 만든다. ⚠️ **신규 첨부와 기존 첨부는
+구성이 다르다** — 신규는 `fileId`만 있으면 되고 **`fileSn`을 보내지 않는다**(서버가 저장할 때 부여).
+ECM 메타(`createdAt`/`hashValue`/`linkedFilePath`/`type`/`originalFileName` …)도 싣지 않는다.
+
+```json
+{"fileId":"…", "fileName":"<확장자 없는 이름>", "fileExtsn":"txt", "filePath":"<원본 파일명>",
+ "fileSize":"42 Bytes", "noConvertFileSize":42, "title":"<이름><크기>", "fileClass":"icon_txt",
+ "fileThumUrl":"", "fileUrl":"", "filePublicYn":"N", "modifyLocalAttach":"N",
+ "link":"N", "fileDeleteYN":"Y", "id":<0-base 인덱스>, "moduleGbn":"EAP",
+ "authKeyMap":{"compSeq":…,"empSeq":…,"docId":"0","migYn":"0"}}
+```
+동반: `modifyFileList`에 `<p class="le">[추가]<파일명></p>`. 상세·캡처 방법은 `07 §11.5.3`.
+
 ### 첨부 다운로드 (ecm001A03) → `download_approval_attachment`
 
 ```
@@ -1022,11 +1044,11 @@ body: a10Domain=https://gw.innogrid.com        # 유일 파라미터
 ## 미조사 (다음 단계)
 
 - **전자결재(`/eap/*`)**: 읽기 3종 + 개인결재라인 CRUD + **상신·상신취소·임시보관삭제** 구현 완료(근태 4양식 순수 API e2e 실증). **미구현은 승인/반려뿐** — 조직 의사결정 행위라 의도적 제외.
-- 전자결재 첨부: **읽기(목록·다운로드)는 구현 완료**(위 절). 쓰기는 **절반만** 풀렸다 —
-  **업로드는 실측 확정**(`ecm001A01` multipart `file[]`, `moduleGbn`이 그대로 파일의 `type`이 된다.
-  ⚠️ 업로드는 `EAP`를 받는데 다운로드는 `BOARD`라야 한다 — 비대칭),
-  **올린 파일을 문서에 붙이는 법은 미해결**(`pVCM_ATTACHFILEINFO` 항목 구조. 저장소의 `eap110A06` 캡처
-  전량에 비어있지 않은 사례가 0건이고 `eap110A03` 응답 108KB에도 힌트가 없다). 상세는 `07 §11.5`.
+- 전자결재 첨부: **읽기(목록·다운로드)·쓰기(첨부 달아 상신) 모두 구현 완료**.
+  업로드는 `ecm001A01` multipart `file[]`(`moduleGbn=EAP` — 그 값이 파일의 `type`이 된다.
+  ⚠️ **다운로드만 `BOARD`** 라 방향에 따라 다르다), 문서에 붙이는 것은 `submit_approval.attachments`.
+  ⚠️ **첨부를 실어 상신하는 경로는 실제로 성공시켜 본 적이 없다** — payload 구조만 브라우저 캡처로
+  확정했고(`07 §11.5.1`·`§11.5.3`), 상신 자체는 알림이 나가는 행위라 시험하지 않았다.
 - **메신저(대화방)**: gw API 미노출 — 별도 제품(웹 통합알림 `event02A01`도 MAIL/BOARD/HPD만, 메신저 이벤트 없음). 자동화하려면 메신저 서비스 별도 리버싱 필요.
 - 메일 상세 본문·첨부는 구현 완료(read_mail/download_mail_attachment).
 - **메일·결재 검색 구현 완료** — 통합검색 `gw018A02`(위 섹션). 모듈별 전용 검색 API는 존재하지 않는다.

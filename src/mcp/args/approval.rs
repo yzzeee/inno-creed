@@ -159,6 +159,10 @@ pub struct SubmitApprovalArgs {
     pub bind_data_json: String,
     /// 표시용 본문 HTML(raw). 내부에서 encodeURIComponent로 인코딩해 전송. 근태 양식은 본문이 bindData/HP연동으로 채워지므로 **한 줄 요약 HTML(예 `<div>2026-12-16 종일외근</div>`)로도 상신이 통과**한다(4양식 실증). 브라우저는 양식 표 전체를 조립해 보내므로, 문서 뷰 표시 품질까지 맞추려면 표 HTML이 필요(미검증). 빈 문자열 가능 여부는 미확인.
     pub doc_contents_html: String,
+    /// 첨부할 로컬 파일 경로 목록(선택). 서버가 도는 머신 기준 절대경로. 비우면 첨부 없이 상신한다.
+    /// 파일은 상신 직전에 ECM 에 올라가며, 상신이 실패하면 **문서에 안 붙은 채 ECM 에 남는다**(고아).
+    #[serde(default)]
+    pub attachments: Vec<String>,
     /// 채번 규칙 ID. 빈 문자열이면 "1001"(기본 채번)이 자동 적용된다 — 보통 그대로 두면 됨.
     #[serde(default)]
     #[serde(deserialize_with = "super::flex_string")]

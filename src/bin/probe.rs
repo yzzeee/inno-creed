@@ -103,6 +103,7 @@ async fn main() -> Result<()> {
             &g("bind_data_json"),
             &g("doc_contents_html"),
             &g("numbering_id"),
+            &a.get("attachments").and_then(|v| v.as_array()).map(|arr| arr.iter().filter_map(|x| x.as_str().map(String::from)).collect::<Vec<_>>()).unwrap_or_default(),
         )
         .await;
         match out {

@@ -511,6 +511,7 @@ pub async fn submit_approval(
     bind_data_json: &str,
     doc_contents_html: &str,
     numbering_id: &str,
+    attachments: &[String],
 ) -> Result<Value> {
     let co_id = c.comp_seq();
     let dept_id = c.dept_seq();
@@ -707,6 +708,11 @@ pub async fn submit_approval(
     let doc_contents = encode_uri_component(doc_contents_html);
     let rep_dt = now_kst_datetime();
 
+    // 첨부: 로컬 파일을 ECM 에 올리고 pVCM_ATTACHFILEINFO 항목으로 만든다(07 §11.5·§11.5.3).
+    // 신규 문서라 doc_id 는 0 — authKeyMap.docId 도 그 값을 따른다.
+    let (attach_items, modify_file_list) =
+        upload_attachments(c, attachments, &co_id, &user_id, "0").await?;
+
     // ── 6) eap110A06 상신 ────────────────────────────────────────────────────
     let param_item = json!({
         "bindData": bind_data_field,
@@ -720,7 +726,7 @@ pub async fn submit_approval(
         "doc_level": "001", "emergency_level": "1", "doc_security": "0", "use_yn": "1",
         "approkey": approkey, "contents_tp": "10", "doc_contents": doc_contents,
         "pTEAG_APPDOC_LINE": line_nodes,
-        "pVKD_TKDDITEM": [], "pVCM_ATTACHFILEINFO": [],
+        "pVKD_TKDDITEM": [], "pVCM_ATTACHFILEINFO": attach_items,
         "pRefer": refer_nodes, "pReceive": [], "pOper": oper_nodes, "pTEAG_APPDOC_REF": [],
         "pTEAG_TOC_FOLDER": "", "pDraftTp": "", "seal_use_yn": "", "receipient": "",
         "receipt": "", "iframeHtml": "", "re_draft": "",
@@ -728,7 +734,7 @@ pub async fn submit_approval(
         "modifyReceive30": "Y", "modifyReceive40": "Y", "modifyTitle": "Y",
         "modifyContent": "Y", "modifyRef": "Y", "modifyAttach": "Y", "modifyAddItem": "Y",
         "modifyInservice": "Y", "modifyDoclevel": "Y", "modifyEmergency": "Y",
-        "modifySeal": "Y", "modifyEabox": "Y", "modifyFileList": "",
+        "modifySeal": "Y", "modifyEabox": "Y", "modifyFileList": modify_file_list,
         "delFileSnList": [], "auditorYn": "0",
         "modifyDocInfo": {
             "docId": 0,
@@ -829,6 +835,101 @@ fn norm_participant(src: &Value) -> Value {
     n
 }
 
+/// 로컬 파일들을 ECM(`ecm001A01`)에 올리고 상신 payload 의 `pVCM_ATTACHFILEINFO` 항목으로 만든다.
+/// 반환: (항목 배열, `modifyFileList` HTML).
+///
+/// ⚠️ **신규 첨부는 기존 첨부와 항목 구성이 다르다**(07 §11.5.3 브라우저 캡처). 갓 올린 파일은
+/// **`fileId` 하나면 되고 `fileSn`을 보내지 않는다**(서버가 저장할 때 부여한다). ECM 메타
+/// (`createdAt`/`hashValue`/`linkedFilePath`/`type`/`originalFileName` …)도 싣지 않는다 —
+/// 이미 저장된 첨부를 다시 실을 때만 그것들이 붙는다.
+///
+/// ⚠️ 업로드의 `moduleGbn`은 **`EAP`** 다. 파일의 `type`이 그 값 그대로 새겨지고(§11.5),
+/// 항목의 `moduleGbn`도 `EAP`다. (⚠️ **다운로드만 `BOARD`** — 방향에 따라 다르다. §11.2)
+async fn upload_attachments(
+    c: &GwClient,
+    paths: &[String],
+    co_id: &str,
+    user_id: &str,
+    doc_id: &str,
+) -> Result<(Vec<Value>, String)> {
+    if paths.is_empty() {
+        return Ok((vec![], String::new()));
+    }
+    let mut items = Vec::with_capacity(paths.len());
+    let mut changes = String::new();
+
+    for (idx, p) in paths.iter().enumerate() {
+        let bytes = std::fs::read(p).map_err(|e| anyhow!("첨부 읽기 실패 {p}: {e}"))?;
+        let full_name = std::path::Path::new(p)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .ok_or_else(|| anyhow!("첨부 경로에서 파일명을 얻지 못했습니다: {p}"))?;
+        let size = bytes.len();
+
+        // 폼은 401 재시도 때 다시 조립될 수 있어 디스크 I/O 를 밖에서 끝내둔다(mail 쪽과 같은 이유).
+        let name_for_form = full_name.clone();
+        let form = move || {
+            let part = reqwest::multipart::Part::bytes(bytes.clone())
+                .file_name(name_for_form.clone())
+                .mime_str("application/octet-stream")
+                .expect("고정 MIME 문자열");
+            reqwest::multipart::Form::new()
+                .part("file[]", part)
+                .text("moduleGbn", "EAP")
+        };
+        let up = c.call_multipart("/ecm/ecm001A01", form).await?;
+        let file_id = up
+            .pointer("/resultData/list/0/fileId")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("ecm001A01 업로드 응답에 fileId 없음({full_name}): {up}"))?
+            .to_string();
+
+        // 서버는 이름과 확장자를 나눠 갖는다 — fileName 은 확장자 없는 이름, filePath 가 원본 파일명.
+        let (stem, ext) = match full_name.rsplit_once('.') {
+            Some((a, b)) if !a.is_empty() => (a.to_string(), b.to_string()),
+            _ => (full_name.clone(), String::new()),
+        };
+        let size_text = human_size(size);
+        items.push(json!({
+            "fileId": file_id,
+            "fileName": stem,
+            "fileExtsn": ext,
+            "filePath": full_name,
+            "fileSize": size_text,
+            "noConvertFileSize": size,
+            "title": format!("{stem}{size_text}"),
+            "fileClass": icon_class(&ext),
+            "fileThumUrl": "", "fileUrl": "", "filePublicYn": "N",
+            "modifyLocalAttach": "N", "link": "N", "fileDeleteYN": "Y",
+            "id": idx,
+            "moduleGbn": "EAP",
+            "authKeyMap": {
+                "compSeq": co_id, "empSeq": user_id, "docId": doc_id, "migYn": "0"
+            }
+        }));
+        changes.push_str(&format!("<p class=\"le\">[추가]{full_name}</p>"));
+    }
+    Ok((items, changes))
+}
+
+/// 서버 표기와 같은 크기 문자열. 실측: 42 → "42 Bytes", 56849 → "55.52 KB".
+fn human_size(n: usize) -> String {
+    if n < 1024 {
+        format!("{n} Bytes")
+    } else {
+        format!("{:.2} KB", n as f64 / 1024.0)
+    }
+}
+
+/// 첨부 목록의 아이콘 클래스. 표시용이고 실측으로 확인된 것은 `txt`(`icon_txt`)와
+/// 그 밖(`icon_etc`, md 가 그랬다)뿐이라 그 둘만 구분한다.
+fn icon_class(ext: &str) -> &'static str {
+    match ext.to_ascii_lowercase().as_str() {
+        "txt" => "icon_txt",
+        _ => "icon_etc",
+    }
+}
+
 /// approkey = "ERP_<uuid4-ish>" — 16 랜덤바이트를 uuid 포맷으로.
 /// (첨부 목록 조회도 `eap110A03`를 부르므로 `approval` 모듈이 같이 쓴다 — 07 §11.1.)
 pub(crate) fn gen_approkey() -> String {
@@ -867,6 +968,58 @@ fn now_kst_datetime() -> String {
     let (y, m, d) = days_to_ymd(days);
     let (hh, mm, ss) = (tod / 3600, (tod % 3600) / 60, tod % 60);
     format!("{y:04}-{m:02}-{d:02} {hh:02}:{mm:02}:{ss:02}")
+}
+
+#[cfg(test)]
+mod attach_tests {
+    use super::*;
+
+    /// 크기 문자열은 **서버 표기와 같아야** 한다 — 브라우저 캡처 실측값으로 고정한다(07 §11.5.3/§11.1).
+    #[test]
+    fn human_size는_서버표기를_따른다() {
+        assert_eq!(human_size(42), "42 Bytes");     // 캡처: newattach.txt
+        assert_eq!(human_size(68), "68 Bytes");     // 캡처: test 복사본.md
+        assert_eq!(human_size(56849), "55.52 KB");  // 캡처: 20260803_17_57_10.png
+        assert_eq!(human_size(1023), "1023 Bytes"); // 경계: 1KB 미만은 Bytes
+        assert_eq!(human_size(1024), "1.00 KB");
+    }
+
+    #[test]
+    fn icon_class는_확인된_것만_구분한다() {
+        assert_eq!(icon_class("txt"), "icon_txt");
+        assert_eq!(icon_class("TXT"), "icon_txt", "확장자는 대소문자를 가리지 않는다");
+        assert_eq!(icon_class("md"), "icon_etc", "캡처에서 md 는 icon_etc 였다");
+        assert_eq!(icon_class(""), "icon_etc");
+    }
+
+    /// 파일명은 **이름과 확장자를 나눠** 싣는다. `filePath` 만 원본 그대로다(캡처 §11.5.3).
+    #[test]
+    fn 파일명은_이름과_확장자로_나뉜다() {
+        let split = |n: &str| match n.rsplit_once('.') {
+            Some((a, b)) if !a.is_empty() => (a.to_string(), b.to_string()),
+            _ => (n.to_string(), String::new()),
+        };
+        assert_eq!(split("newattach.txt"), ("newattach".into(), "txt".into()));
+        assert_eq!(split("test 복사본.md"), ("test 복사본".into(), "md".into()));
+        // 점이 여럿이면 마지막 것이 확장자
+        assert_eq!(split("a.b.zip"), ("a.b".into(), "zip".into()));
+        // 확장자가 없으면 이름만 남고 확장자는 빈 문자열
+        assert_eq!(split("README"), ("README".into(), "".into()));
+        // 숨김파일(.gitignore)은 이름이 비지 않도록 통째로 이름 취급
+        assert_eq!(split(".gitignore"), (".gitignore".into(), "".into()));
+    }
+
+    /// 첨부가 없으면 **빈 배열과 빈 문자열** — 기존 payload 와 완전히 같은 모양이어야 한다
+    /// (첨부 기능 추가가 첨부 없는 상신을 바꾸면 안 된다).
+    #[tokio::test]
+    async fn 첨부가_없으면_네트워크를_타지_않는다() {
+        let c = GwClient::new(None);
+        let (items, mfl) = upload_attachments(&c, &[], "1000", "3166", "0")
+            .await
+            .expect("빈 입력은 네트워크 없이 성공해야 한다");
+        assert!(items.is_empty());
+        assert_eq!(mfl, "");
+    }
 }
 
 #[cfg(test)]

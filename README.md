@@ -81,7 +81,7 @@
 | `read_approval` | 문서 1건 본문(평문)·헤더·결재선 (열람 부작용 없음) |
 | `list_approval_attachments` / `download_approval_attachment` | 결재 첨부 목록 / 다운로드 — 상신문서·임시보관 양쪽 (⚠️ 다운로드는 `fileId` 단건씩) |
 | `approval_counts` | 함별 미처리 건수(숫자만 — 내용까지 보려면 `pending_approvals`) |
-| `submit_approval` | 문서 상신 — ⚠️ 실제 결재요청 통지 발송 |
+| `submit_approval` | 문서 상신(`attachments`로 파일 첨부) — ⚠️ 실제 결재요청 통지 발송 |
 | `cancel_approval` | 상신 취소 — 상태별 3단계(결재취소→상신취소→`purge` 시 삭제) |
 | `delete_temp_approval` | 임시보관 문서 삭제 — 상신취소로 되돌아온 문서·시험 잔여물 정리용 |
 | `list_approval_lines` / `read_approval_line` | 개인결재라인 목록 / 결재자 구성 조회 |

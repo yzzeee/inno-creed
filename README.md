@@ -227,7 +227,7 @@ cargo build --release   # → target/release/inno-creed (Windows는 inno-creed.e
 
 **Rust 1.96+** (edition 2024, 번들 `libsqlite3-sys`가 최신 toolchain 요구)와 **C 컴파일러**(rusqlite 번들 SQLite 컴파일용)가 필요합니다.
 
-Windows x64에서 ARM64용으로 빌드하려면 Visual Studio의 ARM64 C++ 빌드 도구와 Windows SDK를 설치한 뒤 다음을 실행합니다.
+Windows x64에서 ARM64용으로 빌드하려면 Visual Studio의 ARM64 C++ 빌드 도구, Windows SDK, **C++ Clang Compiler for Windows와 LLVM(clang-cl) 도구 집합 지원**을 설치한 뒤 다음을 실행합니다. 암호화 의존성 `aws-lc-sys`가 Windows ARM64에서 Clang을 필요로 합니다.
 
 ```powershell
 rustup target add aarch64-pc-windows-msvc

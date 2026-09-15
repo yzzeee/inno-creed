@@ -118,10 +118,15 @@ impl ServerHandler for Amaranth {
                아마란스에 그룹메일이 없어 이 서버가 대신 갖는다 — `save_person_group`으로 만들고(이름/empSeq를 그대로 주면 된다), \
                쓸 때 `person_group(name)`이 `empSeqs`(→ 일정 참여자)와 `emails`(→ 콤마로 이어 메일 수신자·참조)를 준다.\n\
              - 내 예약을 고치거나 취소하려면 `my_reservations`로 seqNum/resIdx를 먼저 얻는다.\n\
+             - 상신한 문서를 물리는 도구는 **둘이고 대상이 다르다** — `cancel_approval`은 임시보관·상신·진행중(doc_sts 10·20·30)까지, \
+               **결재가 끝난 근태신청은 `cancel_attendance_application`**(날짜만 주면 된다). \
+               뒤엣것은 취소를 '취소신청서 상신'으로 하는 것이라 되돌릴 수 없고, 원본 결재선을 물려받아 즉시 반영이 아닐 수 있다.\n\
              \n\
              주의:\n\
              - 부작용 있는 도구 — `attendance_clock_in`/`attendance_clock_out`(실제 근태 기록), `submit_approval`(결재요청 발송), \
-               `send_mail`, `read_notice`(조회수 증가), `read_mail`(읽음 처리 — 받은메일함 최근 200건 이내면 `mark_mail_unread`로 되돌릴 수 있다). 사용자가 명시적으로 지시할 때만 호출한다.\n\
+               `cancel_attendance_application`(취소신청서를 **새로 상신** — 되돌릴 수 없다), \
+               `send_mail`/`send_mail_from_draft`(발송), `read_notice`(조회수 증가), \
+               `read_mail`(읽음 처리 — 받은메일함 최근 200건 이내면 `mark_mail_unread`로 되돌릴 수 있다). 사용자가 명시적으로 지시할 때만 호출한다.\n\
              - **메일 발송은 되돌릴 수 없다** — 지시받았더라도 곧바로 `send_mail` 하지 말고, \
                `save_mail_draft`로 초안을 만들어 `list_mail_drafts`로 사용자 확인을 받은 뒤 \
                `send_mail_from_draft`로 **그 초안을 그대로** 보낸다(원본 초안 정리까지 그 도구가 한다). \

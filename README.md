@@ -96,6 +96,7 @@
 | `get_attendance_today` | 오늘 출퇴근 현황(부작용 없음) |
 | `attendance_month` | **기간(월) 근태** — 일자별 출퇴근·근무시간·지각/연차 + 기간 합계 |
 | `attendance_clock_in` / `attendance_clock_out` | 출근·퇴근 기록 — ⚠️ 실제 근태 punch, 기존 기록은 덮어쓰지 않음 |
+| `cancel_attendance_application` | **결재 끝난 근태신청 되돌리기** — ⚠️ 취소신청서를 새로 상신한다(`cancel_approval`이 거부하는 종결 문서용). 인자는 날짜 하나 |
 | `find_person` | **사람 찾기** — 이름·ID·이메일 → `empSeq`/부서/직책/연락처 |
 | `org_chart` | 부서 트리 / 부서별 사원·직책 |
 | `person_group` · `save_person_group` · `delete_person_group` | 사람 그룹 — 아마란스에 없는 그룹메일을 대신한다. 메일 수신자·참조, 일정 참여자에 재사용 |
@@ -289,7 +290,7 @@ inno-creed (Rust MCP 서버, 헤드리스)
  ├─ client   세션 lazy 취득(10분 TTL 캐시) · 헤더 주입 · POST · 응답 파싱
  ├─ modules  자원 · 일정 · 메일 · 게시판 · 전자결재 · 근태 · 조직
  │           API 래퍼 + 파생 조회 + 소유권 가드 · read-back 검증
- └─ mcp      rmcp stdio 서버 — tools/(도구 57개, 도메인별) · args/(인자 스키마) · 에러 변환
+ └─ mcp      rmcp stdio 서버 — tools/(도구 58개, 도메인별) · args/(인자 스키마) · 에러 변환
 ```
 
 크레덴셜만 브라우저에서 빌려오고, 실행은 전부 순수 HTTP입니다. 서명·세션 규격은 [architecture.md](docs/architecture.md)에 정리돼 있습니다.

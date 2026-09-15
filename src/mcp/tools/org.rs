@@ -55,7 +55,7 @@ impl Amaranth {
     }
 
     #[tool(
-        description = "조직도를 조회한다. dept_id 미지정 시 **중첩 부서 트리**(`tree`: 노드마다 deptId/name/gubun/userCount + `children`, 전체 펼침이라 말단팀까지 한 번에 나온다) — 평평한 목록을 받아 조립할 필요가 없다. `flat:true`면 대신 평면 목록(`depts`: path/parentSeq/level 포함)을 주니, 조직 구조를 보려면 트리·조건으로 훑거나 세려면 flat을 쓸 것. parent_seq에 deptId를 주면 그 부서와 하위만 잘라 준다(두 형태 모두 적용). dept_id 지정 시엔 그 부서의 사원+직책(duty=dutyName) 목록. ⚠️ userCount는 하위 부서를 포함한 **누적** 인원이다(부모 − 자식합 = 그 조직 직속). 결재선 직책→담당자 해석용 재료이자 본인 직급(grade) 확인 경로(dept_id=whoami.deptSeq). ⚠️ 직책으로 담당자를 '확정'하지 말고 후보로만 쓸 것(dutyName 권위, dutyCode 숫자 매핑 불안정). ℹ️ 결재라인 등록용 값 중 user_id=여기의 empSeq, co_id=\"1000\" 고정이고 grade_cd(직급코드)만 없다 — 정확한 값이 필요하면 read_approval_line의 기존 결재자 객체를 재사용."
+        description = "조직도를 조회한다. dept_id 미지정 시 **중첩 부서 트리**(`tree`: 노드마다 deptId/name/gubun/userCount + `children`, 전체 펼침이라 말단팀까지 한 번에 나온다) — 평평한 목록을 받아 조립할 필요가 없다. `flat:true`면 대신 평면 목록(`depts`: path/parentSeq/level 포함)을 주니, 조직 구조를 보려면 트리·조건으로 훑거나 세려면 flat을 쓸 것. parent_seq에 deptId를 주면 그 부서와 하위만 잘라 준다(두 형태 모두 적용). dept_id 지정 시엔 그 부서의 사원+직책(duty=dutyName) 목록. ⚠️ userCount는 하위 부서를 포함한 **누적** 인원이다(부모 − 자식합 = 그 조직 직속). 결재선 직책→담당자 해석용 재료이자 본인 직급(grade) 확인 경로(dept_id=whoami.deptSeq). ⚠️ 직책으로 담당자를 '확정'하지 말고 후보로만 쓸 것(dutyName 권위, dutyCode 숫자 매핑 불안정). ℹ️ 결재라인 등록에는 여기의 **empSeq만** 있으면 된다 — `save_approval_line(approvers=[empSeq,…])`가 나머지를 채운다."
     )]
     async fn org_chart(
         &self,

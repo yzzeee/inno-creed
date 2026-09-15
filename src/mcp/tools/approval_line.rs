@@ -36,7 +36,7 @@ impl Amaranth {
     }
 
     #[tool(
-        description = "개인결재라인 1건의 결재자 구성을 조회한다(eap102A05). 반환 members[]는 등록에 필요한 원본 결재자 객체(user_id/co_id/grade_cd/duty_cd/act_id 등) — 신규 라인 만들 때 이걸 그대로 재사용해 detail_line에 넣으면 전 필드가 채워져 가장 안전하다. (user_id 자체는 org_chart의 empSeq와 동일하므로 새 인물은 org_chart로도 구성 가능 — 이쪽에만 있는 건 grade_cd 같은 표시용 필드.)"
+        description = "개인결재라인 1건의 결재자 구성을 조회한다(eap102A05). `count`=결재자 수, `members[]`=결재자 원본 객체(순서=결재 순서, `user_id`가 empSeq, `user_nm`이 이름). 상신 전에 **누가 결재선에 있는지 사용자에게 확인시키는 용도**다. 라인을 새로 만들 땐 이 객체를 베낄 필요가 없다 — `save_approval_line`이 empSeq 목록만 받아 나머지를 채운다."
     )]
     async fn read_approval_line(
         &self,
@@ -49,21 +49,19 @@ impl Amaranth {
     }
 
     #[tool(
-        description = "개인결재라인을 생성/수정한다(eap102A10). line_id=0 신규, 기존 id면 수정. detail_line_json은 결재자 객체 JSON 배열(배열 순서=결재 순서, 순서 필드 자동 주입). ⚠️ 이건 재사용 config 저장이지 상신이 아님. 결재자 객체는 read_approval_line(기존 라인)에서 재사용하거나, org_chart로 새로 구성(user_id=empSeq, co_id=\"1000\", grade_cd만 없어 표시용 추정치 허용). 저장 후 read_approval_line로 순서 재확인 권장."
+        description = "개인결재라인을 생성/수정한다(eap102A10). `approvers`에 **결재자 empSeq 목록**만 주면 된다(배열 순서 = 결재 순서) — 서버 payload 필드(co_id·act_id·org_id·org_div·순서)는 도구가 채운다. line_id=0 신규, 기존 id면 수정. ⚠️ 이건 재사용 config 저장이지 상신이 아님. ⛔ **결재자 0명은 거부한다**(서버는 빈 라인도 '저장됨'으로 응답하므로 도구가 저장 후 재조회해 판정한다 — 어긋나면 신규 라인은 되돌린다). ⛔ **기안자 단독 결재선도 거부한다** — 상신 즉시 종결(doc_sts 90)되어 cancel_approval로 취소할 수 없다. 결재선은 규칙(위임전결)이 있으니 `suggest_approval_line`으로 후보를 받아 **사용자에게 이름을 확인받은 뒤** 등록할 것. 합의자·수신참조·시행자는 담지 않는다(상신 때 서버가 양식필수로 병합). 응답의 `approverCount`·`approvers`(이름 포함)로 실제 저장 결과를 확인한다."
     )]
     async fn save_approval_line(
         &self,
         Parameters(a): Parameters<SaveApprovalLineArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let detail: Vec<serde_json::Value> = serde_json::from_str(&a.detail_line_json)
-            .map_err(|e| ErrorData::invalid_params(format!("detail_line_json 파싱 실패(JSON 배열이어야 함): {e}"), None))?;
         let data = modules::approval_line::save_line(
             &self.client,
             a.line_id,
             &a.line_nm,
             a.form_id,
             &a.proc_id,
-            detail,
+            &a.approvers,
         )
         .await
         .map_err(map_domain_err_ctx("결재라인 저장 실패"))?;
@@ -71,15 +69,13 @@ impl Amaranth {
     }
 
     #[tool(
-        description = "개인결재라인을 삭제한다(eap102A09). row_json은 list_approval_lines 결과의 `_row` 객체 JSON(⚠️ lineId 숫자 아님)."
+        description = "개인결재라인을 삭제한다(eap102A09). `line_id`는 list_approval_lines 결과의 lineId — 서버가 요구하는 행 객체는 도구가 조회해 채운다. 삭제 후 목록 재조회로 부재를 확인해 `verified_by_readback`으로 보고한다(`ok:false`면 아직 남아 있다는 뜻). 없는 lineId면 실행 없이 에러."
     )]
     async fn delete_approval_line(
         &self,
         Parameters(a): Parameters<DeleteApprovalLineArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let row: serde_json::Value = serde_json::from_str(&a.row_json)
-            .map_err(|e| ErrorData::invalid_params(format!("row_json 파싱 실패: {e}"), None))?;
-        let data = modules::approval_line::delete_line(&self.client, row)
+        let data = modules::approval_line::delete_line(&self.client, &a.line_id)
             .await
             .map_err(map_domain_err_ctx("결재라인 삭제 실패"))?;
         Ok(CallToolResult::success(vec![ContentBlock::text(data.to_string())]))

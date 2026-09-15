@@ -303,7 +303,7 @@ def undo_approval_line(mcp: Mcp, ref: dict, marker: str):
         return True, "이미 없음"
     if marker not in str(row.get("lineName", "")):
         return False, f"마커 없는 결재라인이라 건드리지 않음: {row.get('lineName')!r}"
-    r = mcp.call("delete_approval_line", row_json=json.dumps(row["_row"], ensure_ascii=False))
+    r = mcp.call("delete_approval_line", line_id=str(ref["lineId"]))
     if r[0] == "ERR":
         return False, r[1]
     after = mcp.call("list_approval_lines")
@@ -808,7 +808,7 @@ def body(mcp: Mcp, fx: dict, marker: str):
                 and all("candidates" in s for s in steps),
                 f"{len(steps)}단계 전부 candidates 보유 · 검증필요 표시")
 
-    run(mcp, "suggest_approval_line", chk_suggest, doc_type=doc_type)
+    sug = run(mcp, "suggest_approval_line", chk_suggest, doc_type=doc_type)
 
     run(mcp, "get_attendance_today", lambda d: (len(json.dumps(d)) > 20, "반환"))
     run(mcp, "attendance_month", lambda d: (len(json.dumps(d)) > 100, "반환"),
@@ -1013,20 +1013,32 @@ def body(mcp: Mcp, fx: dict, marker: str):
             skip("delete_calendar_event", "등록 실패")
 
     # 결재라인 — 생성 후 즉시 삭제. 상신하지 않으므로 아무에게도 통지되지 않는다.
-    line_nm = f"{marker} 라이브 점검"
-    sl = run(mcp, "save_approval_line", lambda d: (
-        d["createdLineId"] > 0, f"lineId={d['createdLineId']}"),
-        form_id=fx["approvalLine"]["formId"], line_nm=line_nm,
-        detail_line_json=json.dumps([{"user_id": me["empSeq"]}]))
-    if sl and sl.get("createdLineId"):
-        al = track("approval_line", {"lineId": sl["createdLineId"]},
-                   f"아마란스 전자결재 > 결재선 관리에서 '{line_nm}' 삭제")
-        ok, note = undo_approval_line(mcp, al["ref"], marker)
-        R.append(("PASS" if ok else "FAIL", "delete_approval_line", note))
-        if ok:
-            untrack(al)
+    # ⚠️ **기안자 단독 라인은 도구가 거부한다**(상신 즉시 종결 doc_sts 90 → 취소 불가). 그래서
+    #    본인 아닌 결재자 1명을 suggest_approval_line 후보에서 가져온다 — 라인 등록은 config
+    #    저장이라 그 사람에게 통지되지 않는다(상신할 때만 통지된다).
+    cand = next(
+        (str(c["empSeq"]) for b in (sug or {}).get("branches", [])
+         for st in b.get("steps", []) for c in (st.get("candidates") or [])
+         if c.get("empSeq") and str(c["empSeq"]) != str(me["empSeq"])),
+        None)
+    if cand is None:
+        skip("save_approval_line", "suggest_approval_line 후보에 본인 아닌 결재자가 없음")
+        skip("delete_approval_line", "생성 안 함")
     else:
-        skip("delete_approval_line", "생성 실패")
+        line_nm = f"{marker} 라이브 점검"
+        sl = run(mcp, "save_approval_line", lambda d: (
+            d["approverCount"] == 1 and d["verified_by_readback"] is True,
+            f"lineId={d['lineId']} · 결재자 1명(재조회 확인)"),
+            form_id=fx["approvalLine"]["formId"], line_nm=line_nm, approvers=[cand])
+        if sl and sl.get("lineId"):
+            al = track("approval_line", {"lineId": sl["lineId"]},
+                       f"아마란스 전자결재 > 결재선 관리에서 '{line_nm}' 삭제")
+            ok, note = undo_approval_line(mcp, al["ref"], marker)
+            R.append(("PASS" if ok else "FAIL", "delete_approval_line", note))
+            if ok:
+                untrack(al)
+        else:
+            skip("delete_approval_line", "생성 실패")
 
     # 메일 — 수신자는 본인 고정(Mcp.call 이 to 지정을 차단한다)
     sent_at = datetime.now()

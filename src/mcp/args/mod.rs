@@ -96,6 +96,13 @@ mod flex {
             .map(Some)
     }
 
+    /// 문자열 **목록** 인자(필수) — `string_vec_opt`과 같은 관용을 갖는다(항목 숫자 허용,
+    /// 단건을 배열로 감싸지 않은 것도 허용). 빈 값은 빈 목록으로 두고 **의미 판정은 모듈이 한다**
+    /// (예: `save_approval_line.approvers`가 비면 "결재자 없는 라인" 에러).
+    pub fn string_vec<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+        Ok(string_vec_opt(d)?.unwrap_or_default())
+    }
+
     pub fn int_schema(g: &mut SchemaGenerator) -> Schema {
         widen(<i64 as JsonSchema>::json_schema(g), "integer")
     }
@@ -110,7 +117,15 @@ mod flex {
 
     /// 목록 인자의 **항목** 타입을 넓힌다(바깥의 `["array","null"]`은 그대로 둔다).
     pub fn str_vec_opt_schema(g: &mut SchemaGenerator) -> Schema {
-        let mut s = <Option<Vec<String>> as JsonSchema>::json_schema(g);
+        widen_items(<Option<Vec<String>> as JsonSchema>::json_schema(g))
+    }
+
+    /// 필수 목록 인자용 — 바깥은 `array`, 항목만 넓힌다.
+    pub fn str_vec_schema(g: &mut SchemaGenerator) -> Schema {
+        widen_items(<Vec<String> as JsonSchema>::json_schema(g))
+    }
+
+    fn widen_items(mut s: Schema) -> Schema {
         if let Some(obj) = s.as_object_mut()
             && let Some(items) = obj.get_mut("items")
             && let Some(io) = items.as_object_mut()
@@ -134,7 +149,8 @@ mod flex {
 pub(super) use flex::{
     i64 as flex_i64, int_schema as flex_int_schema, str_opt_schema as flex_str_opt_schema,
     str_schema as flex_str_schema, str_vec_opt_schema as flex_str_vec_opt_schema,
-    string as flex_string, string_opt as flex_string_opt, string_vec_opt as flex_string_vec_opt,
+    str_vec_schema as flex_str_vec_schema, string as flex_string, string_opt as flex_string_opt,
+    string_vec as flex_string_vec, string_vec_opt as flex_string_vec_opt,
 };
 
 pub(super) fn one() -> i64 {
@@ -167,21 +183,21 @@ mod tests {
     #[test]
     fn 숫자_인자는_문자열도_받는다() {
         let a: approval::SaveApprovalLineArgs = serde_json::from_value(json!({
-            "line_id": "2047", "form_id": "36", "line_nm": "x", "detail_line_json": "[]"
+            "line_id": "2047", "form_id": "36", "line_nm": "x", "approvers": ["2083"]
         }))
         .expect("문자열 ID를 받아야 한다");
         assert_eq!((a.line_id, a.form_id), (2047, 36));
 
         // 숫자도 그대로
         let b: approval::SaveApprovalLineArgs = serde_json::from_value(json!({
-            "line_id": 2047, "form_id": 36, "line_nm": "x", "detail_line_json": "[]"
+            "line_id": 2047, "form_id": 36, "line_nm": "x", "approvers": [2083]
         }))
         .unwrap();
         assert_eq!((b.line_id, b.form_id), (2047, 36));
 
         // 숫자가 아닌 문자열은 여전히 거절 — 조용히 0으로 만들지 않는다
         assert!(serde_json::from_value::<approval::SaveApprovalLineArgs>(json!({
-            "line_id": "abc", "form_id": 36, "line_nm": "x", "detail_line_json": "[]"
+            "line_id": "abc", "form_id": 36, "line_nm": "x", "approvers": ["2083"]
         }))
         .is_err());
     }

@@ -867,8 +867,34 @@ body: { deptSeq, userSe:"USER|AT", compSeq, bizSeq(=compSeq), empSeq, groupSeq, 
 | `eap102A10` | 라인 생성·수정 | `save_approval_line` |
 | `eap102A09` | 라인 삭제 — body `{"lineIdList":[<행 객체>]}` | `delete_approval_line` |
 
-- ⚠️ **삭제는 `lineId` 숫자가 아니라 `eap102A02`가 준 행 객체를 통째로** 넘겨야 한다. 그래서 `list_approval_lines`가 각 항목에 원본 행을 `_row`로 실어 준다.
-- ⚠️ **결재자 객체는 부분 지정이 안 된다.** `[{"user_id":"<empSeq>"}]`만 주면 저장은 성공하고 `lineId`도 돌아오지만, **`eap110A03`이 그 라인을 결재자 0명으로 해석한다**(2026-08-06 실측). `read_approval_line`이 주는 멤버 객체(27필드 — `co_id`/`dept_id`/`duty_cd`/`grade_cd`/`act_id`/`org_div` 등)를 그대로 재사용할 것. 배열 순서 = 결재 순서이고 순서 필드(`doc_line_seq` 등)만 서버가 자동 주입한다.
+- ⚠️ **삭제는 `lineId` 숫자가 아니라 `eap102A02`가 준 행 객체를 통째로** 넘겨야 한다(id만 넣으면 `resultCode 2165`). 그래서 `list_approval_lines`가 각 항목에 원본 행을 `_row`로 실어 주고, **`delete_approval_line`은 그 조회·조립을 스스로 한다**(호출자는 `line_id`만 준다).
+- ⚠️ **`eap102A10`은 결재자 없는 라인을 만들면서 성공을 반환한다.** 결재자 객체에
+  **`org_id`(=empSeq)와 `org_div`("m")** 가 없으면 행은 생기고 `createdLineId`·`insertDResult:1`이
+  돌아오지만 **결재자는 0명으로 저장된다**(`eap102A05` 재조회 `aaData` 빈 배열, `eap110A03`도 그
+  라인을 0명으로 해석). 필드 이분법 실측(2026-09-15, 7회)으로 확정한 **최소 필수 5필드**:
+
+  | 필드 | 값 |
+  |---|---|
+  | `user_id` | empSeq |
+  | `org_id` | **empSeq (user_id와 같은 값)** |
+  | `org_div` | **`"m"`** (사람 노드. 부서 노드는 `"d"`) |
+  | `co_id` | 회사코드(`"1000"`) |
+  | `act_id` | `3000`=결재 / `4000`=합의 |
+
+  `dept_id`·`duty_cd`·`grade_cd`·`user_nm`·`login_id`·`path_name`은 **보내지 않아도 서버가
+  조직도에서 채운다**(실측 B/D/F). 순서 필드 3개(`doc_line_seq`/`doc_line_m_seq`/`line_seq`,
+  1-base)는 배열 순서대로 함께 보내야 한다.
+
+  > 이 5필드 조립은 **`save_approval_line`이 한다** — 도구는 `approvers`(empSeq 목록)만 받는다.
+  > `org_id`/`org_div`는 어떤 조회 도구도 주지 않아(`find_person`·`org_chart`·
+  > `suggest_approval_line` 전부 empSeq까지만 준다) 호출자에게 요구하면 맞힐 수 없다.
+  > 2026-08-06에 "부분 지정 불가"까지는 확인했으나 **어느 필드가 필수인지**를 남기지 않아,
+  > 도구 설명이 "grade_cd만 없다"로 잘못 안내한 채 한 달 넘게 유지됐고 실제 상신 실패로
+  > 이어졌다(2026-09-15). 결론만 적고 무엇이 필수인지 빼면 이런 일이 생긴다.
+- ⛔ **기안자 단독 라인은 도구가 거부한다.** 결재자=기안자면 상신 즉시 `종결`(doc_sts 90)이 되고
+  `cancel_approval`은 90 취소를 거부해(실증 10·20·30) 되돌릴 수 없는 문서가 남는다
+  (2026-09-15 실측, docId 148978). 판정은 `approval_line::line_shape` 하나로 저장·상신 두 시점에서
+  같이 쓴다(§7.1.1).
 
 ### 상신 → `submit_approval`
 

@@ -99,8 +99,15 @@ pub struct SaveApprovalLineArgs {
     #[serde(deserialize_with = "super::flex_i64")]
     #[schemars(schema_with = "super::flex_int_schema")]
     pub form_id: i64,
-    /// 결재자 객체 배열의 JSON 문자열. ⚠️ **배열 순서 = 결재 순서**. read_approval_line 결과의 members 객체를 원하는 순서로 담을 것(user_id/co_id/duty_cd/dept_id/grade_cd/grade_nm/act_id 등 필드 포함). act_id 3000=결재/4000=합의. 순서 필드(doc_line_seq/doc_line_m_seq/line_seq)는 자동 주입됨. org_chart로 새 인물을 만들 땐 user_id=empSeq, co_id="1000"이고 grade_cd(직급코드)만 org에 없어 표시용으로 추정치를 넣어도 됨(라우팅 무관).
-    pub detail_line_json: String,
+    /// 결재자 **empSeq 목록**. ⚠️ **배열 순서 = 결재 순서** — 예: `["2083","2857"]`(조재봉 → 임병욱).
+    /// empSeq는 `find_person`/`suggest_approval_line`이 준다. 서버 payload 필드(co_id·act_id·org_id·
+    /// org_div·순서)는 **도구가 채운다** — 넘기지 않는다.
+    /// ⛔ **결재자 0명·기안자 단독은 거부된다**(기안자 단독은 상신 즉시 종결돼 취소할 수 없다).
+    /// 합의자는 담지 않는다 — 양식필수 합의자·수신참조·시행자는 상신 때 서버가 병합한다.
+    #[serde(default)]
+    #[serde(deserialize_with = "super::flex_string_vec")]
+    #[schemars(schema_with = "super::flex_str_vec_schema")]
+    pub approvers: Vec<String>,
     /// 프로세스 ID(기본 "1000" 기본프로세스).
     #[serde(default)]
     #[serde(deserialize_with = "super::flex_string")]
@@ -111,8 +118,10 @@ pub struct SaveApprovalLineArgs {
 #[derive(Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
 pub struct DeleteApprovalLineArgs {
-    /// 삭제할 라인의 행 객체 JSON 문자열. ⚠️ lineId 숫자가 아니라 list_approval_lines 결과의 `_row` 객체를 그대로 넣을 것.
-    pub row_json: String,
+    /// 삭제할 라인의 `lineId`(list_approval_lines 결과의 lineId). 서버가 요구하는 행 객체는 도구가 조회해 채운다.
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub line_id: String,
 }
 
 #[derive(Deserialize, rmcp::schemars::JsonSchema)]

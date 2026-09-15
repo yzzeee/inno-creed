@@ -25,6 +25,7 @@ use anyhow::{anyhow, bail, Result};
 use serde_json::{json, Value};
 
 use crate::client::GwClient;
+use crate::modules::approval_line::LineShape;
 use crate::util::days_to_ymd;
 
 /// 삭제된 문서의 `doc_sts`. 실측(2026-08-06, docId 141826): `eap110A19`로 지운 뒤 `eap110A98`은
@@ -492,7 +493,44 @@ fn inject_identity_deep(node: &mut Value, id: &Identity) {
     }
 }
 
+/// 상신 전 개인결재라인 점검 — 되돌릴 수 없는 mutation 앞의 사전확인(§7.1의 세 번째 갈래).
+///
+/// 막는 두 가지:
+/// - **결재자 0명** — 그 라인으로는 상신이 성립하지 않는다. 그런 라인이 실제로 만들어졌고
+///   증상이 "4분 무응답"으로 나타난 사례가 있다(2026-09-15).
+/// - **기안자 단독** — 상신 즉시 `종결`(doc_sts 90)이 되고 `cancel_approval`은 90 취소를
+///   거부하므로 되돌릴 수 없는 문서가 남는다(실측 docId 148978).
+///
+/// 조회 실패는 "통과"로 치지 않는다 — fail-closed(§7.2와 같은 이유: 못 쏜 상신은 다시 쏘면
+/// 되지만 잘못 나간 상신은 되돌릴 수 없다).
+async fn check_line_before_submit(c: &GwClient, line_id: i64) -> Result<()> {
+    let back = crate::modules::approval_line::read_line(c, &line_id.to_string())
+        .await
+        .map_err(|e| {
+            anyhow!("결재라인 {line_id} 을 조회할 수 없어 상신하지 않는다(결재선을 확인하지 못한 채 상신하지 않는다): {e}")
+        })?;
+    let seqs: Vec<String> = back
+        .get("members")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().map(|m| crate::util::s(m, "user_id")).collect())
+        .unwrap_or_default();
+    let me = c.emp_seq();
+    // 저장 시점과 **같은 판정 함수**를 쓴다 — 두 가드가 어긋나지 않게.
+    match crate::modules::approval_line::line_shape(&seqs, &me) {
+        LineShape::Usable => Ok(()),
+        LineShape::Empty => bail!(
+            "결재라인 {line_id} 에 결재자가 없어 상신하지 않는다 — save_approval_line으로 결재자를 \
+             다시 등록할 것(결재선 규칙은 suggest_approval_line으로 확인)."
+        ),
+        LineShape::SoleDrafter => bail!(
+            "결재라인 {line_id} 이 기안자 단독({me})이라 상신하지 않는다 — 상신 즉시 종결(doc_sts 90)되어 \
+             cancel_approval로 취소할 수 없다. 본인 아닌 결재자를 최소 1명 포함한 라인을 쓸 것."
+        ),
+    }
+}
+
 /// 문서 상신 — eap110A06. 근태 계열 양식(외근/연차 등) 대상.
+/// ⚠️ 진입 즉시 `check_line_before_submit`로 결재선을 점검한다(0명·기안자 단독 차단).
 /// - `form_id`: 양식 ID(41 외근/36 연차 …).
 /// - `doc_title`: 문서 제목.
 /// - `line_id`: 사용할 개인결재라인 ID. a03에 appLineId로 넘겨 완전 병합된 결재선을 받는다. save_approval_line으로 준비.
@@ -513,6 +551,13 @@ pub async fn submit_approval(
     numbering_id: &str,
     attachments: &[String],
 ) -> Result<Value> {
+    // ── 결재선 사전 점검 — HP 근태 레코드를 만들기 **전에** 막는다 ──────────────
+    // a03 응답(`kyuljaeResult`)에 기대지 않는 이유: 근태 양식은 양식필수 수신참조·시행자가
+    // 자동 병합되므로 개인라인이 0명이어도 non-empty가 될 수 있다(추측이지만, 0명 라인으로
+    // 실제 상신해 확인하는 것은 잘못된 결재선의 실문서가 나가는 위험이 있어 시험하지 않았다).
+    // 여기서 막으면 그 질문 자체가 닫힌다. 비용은 조회 1콜 — 되돌릴 수 없는 상신 앞의 1콜이다.
+    check_line_before_submit(c, line_id).await?;
+
     let co_id = c.comp_seq();
     let dept_id = c.dept_seq();
     let user_id = c.emp_seq();

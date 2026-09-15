@@ -188,7 +188,17 @@ wehago-sign = Base64( HMAC_SHA256( authToken ‖ transactionId ‖ timestamp ‖
 
 > 모든 mutation(등록/수정/삭제)은 직후 **재조회(read-back)로 실제 상태를 확인**하고, 반영이 안 됐으면 실패로 처리한다.
 
-**구현 위치**: 도구 층이 아니라 **각 도메인 모듈의 mutation 함수 안**이다(`resource::reserve/update/cancel_and_verify`, `calendar::create/update/delete_event_and_verify`, `attendance::punch_and_verify`, `approval_submit::cancel_and_verify`, `mail::save_mail_draft`). 검증 없는 raw 래퍼도 남아 있으나 새 호출부는 검증하는 쪽을 쓴다 — 규칙이 모듈에 있어야 MCP를 거치지 않는 호출자도 우회할 수 없다.
+**구현 위치**: 도구 층이 아니라 **각 도메인 모듈의 mutation 함수 안**이다(`resource::reserve/update/cancel_and_verify`, `calendar::create/update/delete_event_and_verify`, `attendance::punch_and_verify`, `approval_submit::cancel_and_verify`, `mail::save_mail_draft`, `approval_line::save_line/delete_line`). 검증 없는 raw 래퍼도 남아 있으나 새 호출부는 검증하는 쪽을 쓴다 — 규칙이 모듈에 있어야 MCP를 거치지 않는 호출자도 우회할 수 없다.
+
+개인결재라인(`approval_line::save_line`)은 이 규약을 **늦게** 지킨 사례다. 서버(`eap102A10`)는 결재자 객체에 `org_id`/`org_div`가 빠지면 행을 만들고도 **결재자를 0명으로 저장하면서 `insertDResult:1`을 준다**(2026-09-15 필드 이분법 실측). 검증이 없던 동안 그 빈 라인이 "저장 성공"으로 보고돼 상신이 실패했고, 원인이 MCP 서버 장애로 오진됐다. 이제 저장 후 `read_line`으로 결재자 수를 대조하고 어긋나면 실패로 올린다 — 신규 생성이었으면 만들어진 빈 라인까지 되돌린다(부수물을 남기지 않는다).
+
+### 7.1.1 되돌릴 수 없는 상태를 만드는 **구성** 자체를 막는다
+
+read-back은 "반영됐는가"를 본다. 그런데 **반영은 됐지만 그 상태 자체가 되돌릴 수 없는** 경우가 있다.
+
+전자결재 개인라인이 **기안자 단독**이면 결재자=기안자라 상신 즉시 `종결`(doc_sts 90)이 되고, `cancel_approval`의 취소 실증 범위는 10·20·30뿐이라 90은 거부된다 → **MCP로 되돌릴 수 없는 문서가 남는다**(2026-09-15 실측, docId 148978 + 연차 1일 차감). 그래서 판정을 순수 함수 `approval_line::line_shape`(0명 / 기안자 단독 / 사용가능) 하나로 두고 **저장 시점과 상신 시점 두 곳에서 같은 규칙으로 막는다**(`save_line`, `approval_submit::check_line_before_submit`). 상신 쪽 가드는 HP 근태 레코드를 만들기 **전에** 둔다 — 그 뒤에 막으면 이미 부수물이 생긴다.
+
+§7.2의 fail-closed와 같은 비대칭이다: 막혀서 못 만든 라인은 웹에서 만들면 되지만, 종결된 문서는 되돌릴 수 없다.
 
 전자결재 취소(`approval_submit::cancel_and_verify`)는 **재조회 경로를 고르는 것 자체가 판정의 일부**인 사례다. 상세 조회(`eap111A04`)는 취소된 문서에 실패 코드(2385/2156)를 주는데 그것이 `c.call`의 `bail!`을 타서 **"취소 성공"과 "장애"가 같은 모양**이 된다. 그래서 상태 조회(`eap110A98`)를 **성공판정 없이**(`call_raw`) 불러 `doc_sts`로 판정한다 — 상신취소는 `10`(임시보관) 복귀, 삭제는 `999`. 실행 API가 주는 성공 신호(`returnValue:1`)는 **이미 삭제된 문서에도 그대로 오므로**(실측) 보조 신호로만 쓴다.
 

@@ -52,6 +52,8 @@ impl Amaranth {
             &a.bind_data_json,
             &a.doc_contents_html,
             &a.numbering_id,
+            // 임시저장은 첨부를 받지 않는다. 상신(submit_approval)에만 있는 경로
+            &[],
         )
         .await
         .map_err(map_domain_err_ctx("임시저장 실패"))?;

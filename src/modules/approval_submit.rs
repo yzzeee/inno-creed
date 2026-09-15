@@ -560,7 +560,7 @@ pub async fn submit_approval(
     // 상신 = doc_sts "20".
     submit_or_draft(
         c, form_id, doc_title, line_id, hp_application_json, bind_data_json,
-        doc_contents_html, numbering_id, "20",
+        doc_contents_html, numbering_id, attachments, "20",
     )
     .await
 }
@@ -587,11 +587,12 @@ pub async fn save_draft_approval(
     bind_data_json: &str,
     doc_contents_html: &str,
     numbering_id: &str,
+    attachments: &[String],
 ) -> Result<Value> {
     // 임시저장 = doc_sts "10".
     submit_or_draft(
         c, form_id, doc_title, line_id, hp_application_json, bind_data_json,
-        doc_contents_html, numbering_id, "10",
+        doc_contents_html, numbering_id, attachments, "10",
     )
     .await
 }
@@ -608,6 +609,7 @@ async fn submit_or_draft(
     bind_data_json: &str,
     doc_contents_html: &str,
     numbering_id: &str,
+    attachments: &[String],
     doc_sts: &str,
 ) -> Result<Value> {
 

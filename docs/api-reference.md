@@ -964,6 +964,48 @@ POST /eap/eap110A06   상신 → resultData.result = 신규 docId
 - 접근 권한이 없는 문서가 `resultData:null`로 오는지는 **미관측**(그런 문서의 docId를 정당하게 얻을 경로가 없다). 그래서 "문서 없음" 메시지는 권한 가능성도 함께 알린다.
 - 이미 삭제된 문서에 `purge:true`로 다시 취소하면 실행 콜 없이 `ok:true, already:true, steps:[]`를 반환한다(멱등). `purge:false`로는 되돌릴 수 없어 에러다.
 
+### 종결된 근태 문서 되돌리기 → `cancel_attendance_application`
+
+`cancel_approval`이 거부하는 **종결(90)** 근태 문서를 되돌리는 유일한 경로다. 아마란스 웹의
+근태신청서 화면에 있는 "결재취소" 버튼이 하는 일인데, **이름과 달리 취소 API가 아니다** —
+`form_id 44` **연차휴가신청서(상신취소)** 라는 별도 양식의 **새 문서를 상신**해 원본을 음수로
+상쇄한다. 그래서 상신 API도 평소와 같은 `eap110A06`이다.
+
+2026-09-15 브라우저 전량 캡처로 확정(`.claude-workspace/captures/20260915-attend-cancel/`).
+대상 `docId 148978`(10/30 연차, 종결) → 취소문서 `docId 149062` 생성 → 종결, 본문에
+`신청일수 -1 · 신청시간 -08시간 · 연차차감 -1`.
+
+| # | API | 요청 | 얻는 것 |
+|---|---|---|---|
+| 1 | `/human/attendapplication/at00001` | `{empCd, startDate, endDate, atCd:"", approState:"0,1,4,5"}` | `appSq`·`detailSq`·`linkKey`·**`idDoc`(=원본 docId)**·표시필드(`empNm`/`deptNm`/`positionNm`/`dutyNm`/`htypNm`/`atCdNm`) |
+| 2 | `/human/hrd0220/selectAttendApplicationInfo` | `{appDt, appSq}` | **`outProcessCancelId`**(예 `"HP_HPD0110_90011"`) |
+| 3 | `/eap/eap096A45` | `body.formDTp` = 위 값 | **취소 양식 `formId`**(연차는 44) |
+| 4 | `/eap/eap096A62` | `{docId: 원본}` | **원본 결재선**(`lineList`) |
+| 5 | `/human/attendapplication/0hr00022` | `{empCdList, atDtList}` | `[]` = 취소 가능 |
+| 6 | `/human/attendapplication/createCancelApplication` | `{linkKey, appSq, detailSqList}` | **새 `appSq`** · `titleDc`(원제목+`" 취소신청"`) |
+| 7 | `GetLinkKey` → `/human/openapi/attendapplication/saveLinkKey` | `{linkKey, appSq, coCd, appDt}` | 결재 연동 바인딩 |
+| 8 | `eap110A03` → `SetEnageGroup` → `eap110A06` | `form_id`=취소 양식 | 새 docId |
+
+⚠️ 7번의 바인딩 API가 **상신 경로와 다르다** — 상신은 `/personal/hpd0110/saveAttendApplicationLinkKey`,
+취소는 `/human/openapi/attendapplication/saveLinkKey`다. 이름이 비슷해 헷갈린다.
+
+- **`form_id 44`를 상수로 박지 않는다.** 2번이 준 `outProcessCancelId`를 3번에 그대로 넘기면
+  서버가 양식을 알려준다. 양식마다 다른 값이므로 하드코딩하면 다른 근태에서 틀린다.
+- **`eap110A03`의 `kyuljaeResult`는 빈 배열이다**(취소 양식엔 개인결재라인을 붙이지 않는다).
+  결재선은 4번에서 온다. a03는 `m_Refer`(수신참조)·`m_Oper`(시행자)·`form_info.form_d_tp`용.
+- ⚠️ **취소문서는 원본의 결재선을 물려받는다.** 원본이 기안자 단독이면 취소문서도 단독이라
+  **즉시 종결**되어 한 번에 끝나지만, 원본이 정상 결재선(팀장→센터장)이면 **취소도 결재를 받아야
+  하고 그 전까지 원본 근태는 살아 있다.** 즉 "즉시 취소"가 아니라 "취소 상신"이다 —
+  도구가 `originStillActive`로 이를 구분해 돌려준다.
+- 본문(`doc_contents`)은 한 줄 요약 HTML로 통과한다. 실제 문서에 렌더되는 값은 `bindData`다
+  (상신 경로와 같은 규칙). `bindData`는 원본 신청값을 음수로 뒤집어 담고, 연차 집계는
+  `/human/common/annualleave/getAnnualLeaveInfoOfEmployee`에서 온다.
+- ⛔ **되돌릴 수 없다** — 취소의 취소는 없다. 도구는 소유권(`appEmpCd`)을 확인하고, 같은 날
+  신청이 여럿이면 임의로 고르지 않고 후보 목록과 함께 거부한다.
+
+**미검증**: 출장(40)·외근(41)·휴일(43)의 취소 양식 / 결재 대기 상태인 취소문서가 반려되면
+어떻게 되는지 / `0hr00022`가 빈 배열이 아닌 값을 주는 조건.
+
 ### 임시보관 문서 삭제 → `delete_temp_approval`
 
 ```

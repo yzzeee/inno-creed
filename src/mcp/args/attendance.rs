@@ -35,3 +35,23 @@ pub struct AttendanceTodayArgs {
     #[schemars(schema_with = "super::flex_str_schema")]
     pub work_dt: String,
 }
+
+/// `cancel_attendance_application` 인자.
+///
+/// ⚠️ 이 도구는 대상을 **날짜로** 찾는다 — 호출자가 appSq·detailSq·linkKey·formId 같은 내부
+/// 식별자를 알 필요가 없다. 같은 날 신청이 여럿일 때만 `app_sq`로 하나를 지목한다(그 값도
+/// 에러 메시지가 후보 목록으로 알려준다).
+#[derive(Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+pub struct CancelAttendanceArgs {
+    /// 취소할 근태가 **적용되는 날**(YYYYMMDD). 상신한 날이 아니라 휴가·출장 당일이다.
+    #[serde(deserialize_with = "super::flex_string")]
+    #[schemars(schema_with = "super::flex_str_schema")]
+    pub date: String,
+    /// 같은 날 근태신청이 여럿일 때만 지목용으로 준다. 비우면 1건일 때 그것을 쓰고,
+    /// 여러 건이면 후보 목록과 함께 에러로 끝난다(임의로 고르지 않는다).
+    #[serde(default)]
+    #[serde(deserialize_with = "super::flex_string_opt")]
+    #[schemars(schema_with = "super::flex_str_opt_schema")]
+    pub app_sq: Option<String>,
+}

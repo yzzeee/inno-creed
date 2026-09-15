@@ -3,6 +3,7 @@ pub mod approval_line;
 pub mod approval_line_suggest;
 pub mod approval_submit;
 pub mod attendance;
+pub mod attendance_cancel;
 pub mod approval_schema;
 pub mod board;
 pub mod calendar;

@@ -11,6 +11,22 @@ use crate::modules;
 
 #[tool_router(router = attendance_router, vis = "pub(crate)")]
 impl Amaranth {
+    #[tool(description = "근태신청(휴가·출장·외근·휴일근무) 1건을 **취소한다**. ⚠️ 실제로 나가는 조작이다 — 명시적 지시가 있을 때만. ⛔ **이건 즉시 취소가 아니라 「취소신청서」를 새로 상신하는 것이다**(아마란스 웹의 '결재취소' 버튼과 같은 동작). 원본 문서를 지우는 게 아니라 같은 내용을 음수(-1일)로 담은 별도 문서를 올려 상쇄한다. 그래서 **cancel_approval이 거부하는 종결(doc_sts 90) 근태 문서도 이 경로로는 되돌릴 수 있다** — 반대로 비근태 문서에는 쓸 수 없다(그쪽은 cancel_approval). ⭐ 필요한 인자는 **날짜 하나**다(`date`=근태가 적용되는 날 YYYYMMDD, 상신한 날이 아님). appSq·detailSq·linkKey·취소 양식 formId·본문 데이터는 전부 도구가 서버에서 찾아 채운다. 같은 날 신청이 여럿이면 후보 목록과 함께 에러로 끝나므로 그때만 `app_sq`로 지목하면 된다(임의로 고르지 않는다). 결재선은 **원본 문서의 결재선을 그대로 물려받는다** — 원본을 승인한 사람이 취소도 승인한다. 따라서 원본이 정상 결재선이면 취소는 **결재가 끝나야** 반영되고 그 전까지 원본 근태는 살아 있다. 응답의 `originStillActive`가 그걸 알려준다(false면 이미 상쇄 확인). 남의 신청은 거부한다. 실증 범위: 연차(form 36→취소 44) 1건 e2e. 출장·외근·휴일의 취소 양식은 미검증이나 양식 id를 서버에서 얻으므로 같은 경로로 동작할 것으로 본다.")]
+    async fn cancel_attendance_application(
+        &self,
+        Parameters(a): Parameters<CancelAttendanceArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.ensure_session().await?;
+        let data = modules::attendance_cancel::cancel_attendance(
+            &self.client,
+            &a.date,
+            a.app_sq.as_deref(),
+        )
+        .await
+        .map_err(map_domain_err_ctx("근태신청 취소 실패"))?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(data.to_string())]))
+    }
+
     #[tool(
         description = "[아마란스] 기간(월) 근태 현황을 조회한다. 일자별 출퇴근·근무시간·지각/연차 등 + 기간 합계. month=\"202608\" 또는 start/end(YYYYMMDD)."
     )]

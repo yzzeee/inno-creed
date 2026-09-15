@@ -149,7 +149,7 @@ mod tests {
     /// (그때 README·docs 도구표도 같이 갱신할 것).
     const EXPECTED_TOOLS: &[&str] = &[
         "approval_counts", "attendance_clock_in", "attendance_clock_out", "attendance_month",
-        "cancel_approval", "cancel_reservation", "create_calendar_event", "delete_approval_line",
+        "cancel_approval", "cancel_attendance_application", "cancel_reservation", "create_calendar_event", "delete_approval_line",
         "delete_calendar_event", "delete_mail", "delete_person_group", "delete_temp_approval",
         "download_approval_attachment", "download_body_image", "download_mail_attachment",
         "download_notice_attachment",

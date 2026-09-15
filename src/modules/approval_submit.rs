@@ -817,7 +817,7 @@ pub async fn submit_approval(
 /// 상신 응답(`eap110A06`의 resultData)에서 새 docId를 꺼낸다. **성공 판정이 곧 이것이다** —
 /// docId가 없으면 상신은 이뤄지지 않은 것이다(실측상 성공 응답은 `resultData.result`에 docId를 싣는다).
 /// 서버가 number/string 어느 쪽으로 주든 받되, `null`·빈 문자열·`0`은 발급 실패로 본다.
-fn submitted_doc_id(rd: &Value) -> Option<Value> {
+pub(crate) fn submitted_doc_id(rd: &Value) -> Option<Value> {
     let v = rd.get("result")?;
     match v {
         Value::Number(n) => (n.as_i64() != Some(0)).then(|| v.clone()),
@@ -871,7 +871,7 @@ pub async fn delete_temp_approval(c: &GwClient, doc_ids: &str) -> Result<Value> 
 /// 실측(브라우저 캡처) 확인: a03 노드는 org_id/dept_line/seq/doc_line_* 가 이미 정확하고,
 /// 브라우저는 딱 하나 `org_div = div` 만 추가해 그대로 보낸다. 그 외 재구성은 하지 않는다.
 /// (개인 시행자/참조자를 부서노드로 강제 변환하던 이전 로직은 브라우저와 어긋나 폐기 — 2099와는 무관했음.)
-fn norm_participant(src: &Value) -> Value {
+pub(crate) fn norm_participant(src: &Value) -> Value {
     let mut n = src.clone();
     if let Some(o) = n.as_object_mut() {
         let div = o.get("div").and_then(|v| v.as_str()).unwrap_or("m").to_string();
@@ -986,7 +986,7 @@ pub(crate) fn gen_approkey() -> String {
 }
 
 /// JS encodeURIComponent 동등 — A-Za-z0-9 와 `-_.!~*'()` 만 남기고 UTF-8 바이트를 %XX 로.
-fn encode_uri_component(s: &str) -> String {
+pub(crate) fn encode_uri_component(s: &str) -> String {
     let mut out = String::with_capacity(s.len() * 2);
     for &byte in s.as_bytes() {
         let keep = byte.is_ascii_alphanumeric()
@@ -1002,7 +1002,7 @@ fn encode_uri_component(s: &str) -> String {
 }
 
 /// 현재 KST(UTC+9) "YYYY-MM-DD HH:MM:SS".
-fn now_kst_datetime() -> String {
+pub(crate) fn now_kst_datetime() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)

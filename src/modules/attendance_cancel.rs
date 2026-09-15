@@ -110,8 +110,9 @@ fn neg(x: f64) -> String {
 
 /// 내 근태신청 중 `date`(YYYYMMDD) 자의 것을 찾는다.
 ///
-/// `approState` `0,1,4,5`는 브라우저가 쓰는 조회 범위 그대로다(상신 전~종결). 취소 가능 여부는
-/// 이 목록이 아니라 `0hr00022`가 판정한다.
+/// 브라우저 캘린더는 `approState` `0,1,4,5`만 훑지만 **여기서는 전 상태를 본다** — 결재 진행중인
+/// 신청이 그 범위에 없어서 "취소할 신청이 없다"는 틀린 안내가 나왔다(2026-09-15 실측).
+/// 취소 가능 여부는 조회 범위가 아니라 `outProcessCancelId`와 `0hr00022`가 판정한다.
 async fn find_targets(c: &GwClient, date: &str) -> Result<Vec<Value>> {
     let emp_cd = c.emp_cd();
     let r = c
@@ -119,14 +120,16 @@ async fn find_targets(c: &GwClient, date: &str) -> Result<Vec<Value>> {
             "/human/attendapplication/at00001",
             &json!({
                 "empCd": emp_cd, "startDate": date, "endDate": date,
-                "atCd": "", "approState": "0,1,4,5"
+                "approState": "0,1,2,3,4,5"
             }),
         )
         .await
         .map_err(|e| anyhow!("근태신청 조회(at00001) 실패: {e}"))?;
+    // `c.call`이 봉투(resultData)를 이미 벗겨 주므로 응답 자체가 배열이다.
+    // 한 번 더 벗기려 들면 조용히 0건이 된다(2026-09-15에 그 실수를 했다).
     let list = r
-        .get("resultData")
-        .and_then(|v| v.as_array())
+        .as_array()
+        .or_else(|| r.get("resultData").and_then(|v| v.as_array()))
         .cloned()
         .unwrap_or_default();
     // 이미 취소신청이 걸린 행은 대상에서 뺀다(중복 취소 방지).
@@ -148,6 +151,7 @@ fn digest(v: &Value) -> Value {
         "일수": f(v, "appDy"),
         "문서번호": s(v, "noDoc"),
         "docId": s(v, "idDoc"),
+        "상태": s(v, "approState"),
         "제목": s(v, "titleDc"),
     })
 }
@@ -189,7 +193,27 @@ async fn resolve(c: &GwClient, date: &str, app_sq: Option<&str>) -> Result<Targe
     let app_sq = s(&row, "appSq");
     let doc_id = s(&row, "idDoc");
     if app_sq.is_empty() || doc_id.is_empty() {
-        bail!("대상 근태신청에 appSq/idDoc이 없다 — 상신되지 않은 건일 수 있다. 원본: {row}");
+        bail!(
+            "대상 근태신청에 appSq/idDoc이 없다 — 상신되지 않은 건이거나 과거 상신 실패가 \
+             남긴 고아 HP 레코드일 수 있다(그건 지울 방법이 없다). 대상: {}",
+            digest(&row)
+        );
+    }
+
+    // 결재가 끝난 신청만 취소신청 대상이다. 진행중인 문서에 createCancelApplication을 쏘면
+    // 서버가 `resultCode -1 "취소신청이 불가능한 문서입니다.(0)"`로 거부하는데(2026-09-15 실측),
+    // 그때는 이미 되돌릴 수 없는 구간에 들어와 있다. 그래서 여기서 먼저 막고 **무엇을 써야 하는지**
+    // 알려준다 — "취소할 신청이 없다"는 식의 틀린 안내를 하지 않는다.
+    // 관측된 값: "1"=결재완료(취소신청 가능) / "0"=상신·진행중 / "2"=취소신청 생성 직후.
+    let state = s(&row, "approState");
+    if state != "1" {
+        let form_id = s(&row, "formId");
+        bail!(
+            "이 근태신청은 아직 결재가 끝나지 않았다(approState={state}) — 취소신청서는 \
+             결재완료(1)된 신청에만 낼 수 있다. 진행중인 문서는 상신 자체를 물리면 된다: \
+             cancel_approval(doc_id={doc_id}, form_id={form_id}, purge=true). 대상: {}",
+            digest(&row)
+        );
     }
     Ok(Target {
         app_dt: s(&row, "appDt"),

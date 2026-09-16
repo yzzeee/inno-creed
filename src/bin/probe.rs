@@ -113,6 +113,33 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    // 진단: `probe draft @args.json` → save_draft_approval 직접 호출(임시저장). 인자는 submit 과 동일.
+    if args.get(1).map(|s| s.as_str()) == Some("draft") {
+        let spec = args.get(2).ok_or_else(|| anyhow!("usage: probe draft @args.json"))?;
+        let txt = if let Some(f) = spec.strip_prefix('@') { std::fs::read_to_string(f)? } else { spec.clone() };
+        let a: Value = serde_json::from_str(&txt)?;
+        let client = GwClient::new(creds::from_browser().ok());
+        client.ensure_session().await?;
+        let g = |k: &str| a.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let out = inno_creed::modules::approval_submit::save_draft_approval(
+            &client,
+            a.get("form_id").and_then(|v| v.as_i64()).unwrap_or(0),
+            &g("doc_title"),
+            a.get("line_id").and_then(|v| v.as_i64()).unwrap_or(0),
+            &g("hp_application_json"),
+            &g("bind_data_json"),
+            &g("doc_contents_html"),
+            &g("numbering_id"),
+            &[],
+        )
+        .await;
+        match out {
+            Ok(v) => println!("{}", serde_json::to_string_pretty(&v)?),
+            Err(e) => println!("ERR {e}"),
+        }
+        return Ok(());
+    }
+
     // 진단: `probe cancel <docId> [formId] [purge]` → cancel_and_verify 직접 호출.
     if args.get(1).map(|s| s.as_str()) == Some("cancel") {
         let doc_id = args.get(2).ok_or_else(|| anyhow!("usage: probe cancel <docId> [formId] [purge]"))?;

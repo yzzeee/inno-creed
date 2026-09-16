@@ -5,7 +5,7 @@
 //! `invalid_params`로 분류돼야 하고, 그러려면 문자열이 아닌 타입으로 전달돼야 한다.
 //!
 //! 사용법: 모듈은 `anyhow::Error`로 감싸 올리고(`Err(NotOwner{..}.into())`),
-//! `mcp.rs`는 `err.downcast_ref::<NotOwner>()`로 판별해 `ErrorData::invalid_params`에 매핑한다.
+//! `mcp/mod.rs`(`map_domain_err`)는 `err.downcast_ref::<NotOwner>()`로 판별해 `ErrorData::invalid_params`에 매핑한다.
 //! (문자열 매칭은 취약해서 쓰지 않는다.)
 
 use thiserror::Error;

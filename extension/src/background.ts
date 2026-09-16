@@ -1,9 +1,11 @@
 // inno-creed 크레덴셜 브릿지 — gw.innogrid.com의 BIZCUBE_AT/BIZCUBE_HK 쿠키를
 // Native Messaging으로 로컬 inno-creed 프로세스에 전달한다.
 //
-// 왜 이 방식인가: Windows Chrome/Edge의 app-bound(v20) 쿠키 암호화는 호출자 프로세스
-// 경로를 검증하므로 inno-creed(제3자 프로세스)가 DB 파일을 직접 복호화하는 건 설계상
-// 항상 막힌다. 반면 익스텐션은 브라우저가 공식으로 열어준 `cookies` API로 평문 값을
+// 왜 이 방식인가: 쿠키 DB를 직접 읽는 길은 어느 OS에서도 보장되지 않는다 — Windows
+// Chrome/Edge의 app-bound(v20) 암호화는 호출자 프로세스 경로를 검증해 inno-creed
+// (제3자 프로세스)를 설계상 항상 막고, macOS·Linux도 세션 쿠키가 디스크에 없거나
+// 키체인·키링 접근이 막히면 그대로 실패한다. 그래서 이 브릿지가 전 OS 정식 경로다.
+// 익스텐션은 브라우저가 공식으로 열어준 `cookies` API로 평문 값을
 // 바로 받으므로 이 문제 자체가 없다. `cookies` API는 리스닝 소켓을 못 열기 때문에,
 // 값 전달은 브라우저가 로컬 실행파일을 직접 스폰해 stdio로 이어주는 Native Messaging을
 // 쓴다(소켓/서버 불필요).

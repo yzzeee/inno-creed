@@ -1,5 +1,7 @@
-//! 크레덴셜(authToken/signKey) 취득 — 환경변수 → 익스텐션 캐시(권장, Windows) → Chrome →
+//! 크레덴셜(authToken/signKey) 취득 — 환경변수 → 익스텐션 캐시(**전 OS 정식 경로**) → Chrome →
 //! Edge(Win) → Firefox(비-Windows만) → 크레덴셜 파일 순, macOS·Linux·Windows 크로스플랫폼.
+//! 브라우저 쿠키 직접 읽기(Chrome/Edge/Firefox)는 **익스텐션이 아직 없을 때를 받아주는 폴백**이다 —
+//! 세션 쿠키가 디스크에 없거나 키체인·키링 접근이 막히면 그대로 실패하므로 보장되는 경로가 아니다.
 //! 어느 소스에서 왜 막혔는지는 `diagnose()` 한 곳에서만 만든다 — 최종 에러 문구와
 //! `doctor`가 그 값 하나를 공유한다(따로 구현하면 "doctor는 OK인데 서버는 실패"가 생긴다).
 //! (Edge는 Windows에서만 시도한다 — Chrome과 같은 Chromium 코드베이스라 DB 스키마·암호화
@@ -9,7 +11,8 @@
 //!  · Linux  : 고정 비번 "peanuts"(키링 미사용시) → PBKDF2(SHA1,1) → AES-128-CBC(iv=0x20×16)
 //!  · Windows: `v10`(Local State DPAPI 키)만 취급한다. `v20`(app-bound)은 호출자 프로세스
 //!    경로를 검증하므로 제3자 프로세스로는 **설계상 항상 거부**돼(`ChromeKey` 문서 참고)
-//!    시도조차 안 한다 — Windows는 익스텐션(`extension/`, `native_host.rs`)을 쓴다.
+//!    시도조차 안 한다 — 익스텐션(`extension/`, `native_host.rs`)을 쓴다. Windows는 이 폴백이
+//!    사실상 항상 실패하는 쪽이고, 익스텐션 자체는 전 OS 공통 경로다.
 //! Firefox `cookies.sqlite`는 전 OS 평문이라 프로필 경로만 OS별로 분기하지만, **Windows에서는
 //! 시도하지 않는다** — `gw.innogrid.com`의 세션 쿠키를 Firefox가 브라우저 실행 중엔 그
 //! 파일에 아예 쓰지 않는 걸 실측으로 확인했다(WAL 포함 라이브로 직접 읽어도 없음). DBSC와
@@ -679,11 +682,11 @@ fn linux_keyring_secret() -> Option<String> {
 /// **설계상 항상 거부된다**(실측 확인: Edge에서 `IElevator::DecryptData`가
 /// `hr=0x8004B016, last_error=5`로 거부 — COM 레벨이 아니라 서비스 내부 로직의 명시적
 /// 거부). `gw.innogrid.com`의 `BIZCUBE_AT`/`HK`는 Windows에서 전부 `v20`이라 이 경로로는
-/// 원천적으로 못 푼다 — Windows는 Chrome/Edge 확장 프로그램(`extension/`,
-/// `--install-extension-host`)을 쓴다. 한때 COM 활성화(`Elevation` 모니커 vs 평범한
+/// 원천적으로 못 푼다 — Chrome/Edge 확장 프로그램(`extension/`, `--install-extension-host`)을 쓴다
+/// (전 OS 정식 경로다. Windows는 그중 폴백이 전혀 통하지 않는 쪽일 뿐이다). 한때 COM 활성화(`Elevation` 모니커 vs 평범한
 /// `CoCreateInstance`)까지 정교하게 맞춰 시도해봤으나(성공해도 위 경로검증에 막힘) 항상
-/// 실패하는 코드를 유지할 이유가 없어 걷어냈다 — 자세한 시행착오는
-/// `.claude-workspace/analysis/windows-cookie-troubleshooting.md`.
+/// 실패하는 코드를 유지할 이유가 없어 걷어냈다 — 그때의 기록은
+/// `.claude-workspace/release-notes-v2.0.0.md`(git 미추적).
 #[cfg(target_os = "windows")]
 struct ChromeKey {
     v10: Option<Vec<u8>>, // os_crypt.encrypted_key(DPAPI) → 구형 v10 쿠키

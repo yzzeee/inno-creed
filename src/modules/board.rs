@@ -270,7 +270,8 @@ fn split_uids(uid: &str) -> Vec<String> {
 
 
 /// 본문 삽입 이미지가 실려 오는 엔드포인트. **다운로드 허용 목록**이며 실측된 둘뿐이다
-/// (`captures/board-viewpost_3006.json`, `captures/mail-inline-img_mail002A01.json`).
+/// (`.claude-workspace/analyze/captures/` 의 `board-viewpost_3006.json`,
+/// `mail-inline-img_mail002A01.json` — git 미추적).
 const BODY_IMAGE_PREFIXES: [&str; 2] = ["/gw/contentsImgController/download/", "/mail/mail002A30"];
 
 /// 본문 HTML의 `<img src>` 목록(등장 순서 보존). 같은 이미지를 두 번 쓰면 두 번 담는다 —
@@ -515,7 +516,7 @@ mod tests {
     }
 
     /// 이미지는 태그와 함께 지워지면 흔적이 0이라, 본문의 실질이 이미지인 글이 빈 글로 보인다.
-    /// 실측 원문(`captures/board-viewpost_3006.json`)의 img 태그를 그대로 쓴다.
+    /// 실측 원문(`.claude-workspace/analyze/captures/board-viewpost_3006.json`)의 img 태그를 그대로 쓴다.
     #[test]
     fn html_to_text는_이미지_자리를_남긴다() {
         let real = r#"<img src="/gw/contentsImgController/download/gcmsAmaranth31433/editorImg/fc4aa722-ab83-4527-91da-342140303c5c_png" width="1156" height="821" style="width:100%;height:100%;">"#;

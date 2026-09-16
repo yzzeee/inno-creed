@@ -1,9 +1,14 @@
 //! 브라우저 익스텐션(Chrome/Edge, `extension/`)이 Native Messaging으로 보내주는 쿠키를
 //! 받아 로컬 캐시 파일에 저장하는 쪽. `creds::from_extension_cache`가 그 파일을 읽는다.
+//! **전 OS에서 이 경로가 정식이다** — 등록 자리는 `manifest_targets`가 OS별로 정하고
+//! (Windows는 레지스트리+매니페스트 1개, unix는 브라우저별 디렉토리. macOS는 Chrome만),
+//! 기동마다 `ensure_installed`가 다시 맞춘다.
 //!
-//! **왜 존재하는가**: Windows Chrome/Edge의 app-bound(v20) 쿠키 암호화는 호출자가 브라우저
-//! 자신인지 경로로 검증하므로, inno-creed(제3자 프로세스)가 쿠키 DB를 직접 복호화하는 건
-//! 설계상 항상 막힌다(`creds.rs` 모듈 문서 참고). 반면 익스텐션은 브라우저가 공식으로 열어준
+//! **왜 존재하는가**: 쿠키 DB를 직접 읽는 길은 어느 OS에서도 보장되지 않는다. Windows
+//! Chrome/Edge의 app-bound(v20) 암호화는 호출자가 브라우저 자신인지 경로로 검증해
+//! 제3자 프로세스를 **설계상 항상 거부**하고(`creds.rs` 모듈 문서 참고), macOS·Linux도
+//! 세션 쿠키가 디스크에 없거나 키체인·키링 접근이 막히면 그대로 실패한다.
+//! 반면 익스텐션은 브라우저가 공식으로 열어준
 //! `chrome.cookies` API로 평문 값을 바로 받을 수 있다 — 이 값을 로컬 프로세스로 옮기는
 //! 유일한 non-소켓 경로가 Native Messaging이다(익스텐션은 리스닝 소켓을 못 연다. 브라우저가
 //! 이 실행파일을 스폰해서 stdio를 파이프해준다).

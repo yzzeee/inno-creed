@@ -26,7 +26,7 @@ impl Amaranth {
     }
 
     #[tool(
-        description = "저장된 개인결재라인 목록을 조회한다(eap102A02). 각 항목의 lineId는 read/save에, `_row`는 delete에 사용. 상신 아님(재사용 config)."
+        description = "저장된 개인결재라인 목록을 조회한다(eap102A02). 각 항목의 lineId를 read/save/delete에 그대로 쓴다(delete가 서버에 넘길 행 객체 `_row`는 도구가 스스로 찾아 채운다 — 호출자는 주지 않는다). 상신 아님(재사용 config)."
     )]
     async fn list_approval_lines(&self) -> Result<CallToolResult, ErrorData> {
         let data = modules::approval_line::list_lines(&self.client)

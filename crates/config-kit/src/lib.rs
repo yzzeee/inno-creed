@@ -102,9 +102,15 @@ pub fn inspect_config(path: &Path) -> ConfigCheck {
     }
 }
 
-/// `mcpServers.inno-creed.command`만 갱신한다. 그 외 키는 절대 건드리지 않는다 —
-/// Claude Desktop이 같은 파일에 `preferences`(UI 상태, 6단계 이상 중첩) 등을 저장하므로,
-/// 구조체로 역직렬화했다가 다시 쓰면 모르는 키가 전부 사라진다. 그래서 `Value`를 그대로 다룬다.
+/// `mcpServers.inno-creed` 항목을 `{ "command": <설치 경로> }`로 **교체**한다.
+///
+/// 파일의 나머지는 손대지 않는다 — Claude Desktop이 같은 파일에 `preferences`(UI 상태, 6단계 이상
+/// 중첩) 등을 저장하므로, 구조체로 역직렬화했다가 다시 쓰면 모르는 키가 전부 사라진다. 그래서
+/// `Value`를 그대로 다룬다.
+///
+/// ⚠️ 다만 **`inno-creed` 항목 자체는 통째로 갈린다** — 그 항목에 손으로 넣어둔 `env`·`args`는
+/// 재설치 때 사라진다. 지금은 이 서버가 그 둘을 쓰지 않아 문제가 없지만, 쓰게 되면 여기서
+/// 병합으로 바꿔야 한다.
 pub fn merge_inno_creed_entry(root: &mut Value, exe_path: &Path) {
     if !root.is_object() {
         *root = json!({});

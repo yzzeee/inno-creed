@@ -571,7 +571,10 @@ impl GwClient {
         if status == reqwest::StatusCode::UNAUTHORIZED {
             anyhow!(
                 "로그인이 필요합니다 — gw.innogrid.com 세션이 만료되었거나 유효하지 않습니다({path}).\n\
-                 Chrome 또는 Firefox로 https://gw.innogrid.com 에 로그인하면 서버 재시작 없이 다음 호출에서 복구됩니다.\n\
+                 브라우저에서 https://gw.innogrid.com 에 다시 로그인하면 서버 재시작 없이 복구됩니다 — \
+                 확장 프로그램(전 OS 정식 경로)을 올려 뒀다면 로그인 즉시 자동으로 전달됩니다.\n\
+                 (확장을 아직 안 올렸다면 `inno-creed doctor`가 올리는 방법을 알려줍니다. \
+                 예전 안내와 달리 Windows에서 Firefox 재로그인은 소용이 없습니다 — 그 OS에서는 Firefox를 소스로 쓰지 않습니다.)\n\
                  (재로그인 후에도 같은 안내가 나오면 INNO_CREED_AUTH_TOKEN/INNO_CREED_SIGN_KEY 환경변수가 옛 값으로 고정돼 있는지 확인하세요.)\n\
                  서버 응답: http=401 resultCode={code} msg={msg}"
             )
@@ -581,7 +584,8 @@ impl GwClient {
     }
 
     /// 세션 정보를 lazy 보장. 캐시가 유효(10분 TTL)하면 그대로 반환, 없거나 만료면 gw050A02로
-    /// 재조회 후 캐시. 모든 tool 핸들러가 진입 시 1회 호출한다(값이 필요할 때 알아서 채움).
+    /// 재조회 후 캐시. 서버 왕복이 필요한 tool 핸들러가 진입 시 1회 호출한다(로컬 JSON만 보는
+    /// 도구는 부르지 않는다 — `src/mcp/mod.rs`의 그 주석 참고).
     pub async fn ensure_session(&self) -> Result<()> {
         if let Ok(cache) = self.session.read()
             && cache.fetched_at.is_some_and(|t| t.elapsed() < SESSION_TTL)

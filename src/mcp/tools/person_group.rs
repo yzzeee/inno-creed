@@ -16,7 +16,7 @@ use crate::modules;
 #[tool_router(router = person_group_router, vis = "pub(crate)")]
 impl Amaranth {
     #[tool(
-        description = "자주 함께 지정하는 사람들의 **그룹**을 조회한다(`~/.config/inno-creed/person_groups.json`). 아마란스에 그룹메일이 없어서 두는 것이고, 메일 전용이 아니라 **범용**이다 — 메일 수신자·참조, 캘린더 참여자, 결재선 어디에나 쓴다. name을 비우면 그룹 목록(이름/인원수/메모), 주면 그 그룹의 멤버를 조직도 명부로 풀어서 준다: `members[]`(empSeq/name/email/dept/duty/status) + 바로 쓸 재료인 `empSeqs`(→ create_calendar_event의 participants, save_approval_line의 user_id)와 `emails`(→ **콤마로 이어** send_mail의 to/cc/bcc). ⚠️ 조립은 호출자가 한다 — 소비처마다 모양이 달라 도구가 미리 이어 붙이지 않는다. ⚠️ 명부에서 못 찾은 사람은 `status:\"not_found\"` 로 남고 `missing`에 실리며 **emails에서 빠진다** — 그대로 보내면 그 사람만 누락되니 사용자에게 알릴 것. 그룹을 만들거나 고치려면 응답의 `path` 파일을 직접 편집한다(이 도구는 쓰지 않는다). 멤버의 정본은 empSeq이며 find_person으로 얻는다."
+        description = "자주 함께 지정하는 사람들의 **그룹**을 조회한다(`~/.config/inno-creed/person_groups.json`). 아마란스에 그룹메일이 없어서 두는 것이고, 메일 전용이 아니라 **범용**이다 — 메일 수신자·참조, 캘린더 참여자, 결재선 어디에나 쓴다. name을 비우면 그룹 목록(이름/인원수/메모), 주면 그 그룹의 멤버를 조직도 명부로 풀어서 준다: `members[]`(empSeq/name/email/dept/duty/status) + 바로 쓸 재료인 `empSeqs`(→ create_calendar_event의 participants, save_approval_line의 approvers — **배열 순서 = 결재 순서**)와 `emails`(→ **콤마로 이어** send_mail의 to/cc/bcc). ⚠️ 조립은 호출자가 한다 — 소비처마다 모양이 달라 도구가 미리 이어 붙이지 않는다. ⚠️ 명부에서 못 찾은 사람은 `status:\"not_found\"` 로 남고 `missing`에 실리며 **emails에서 빠진다** — 그대로 보내면 그 사람만 누락되니 사용자에게 알릴 것. 그룹을 만들거나 고치려면 `save_person_group`/`delete_person_group`을 쓴다(응답의 `path` 파일을 직접 편집해도 된다). 멤버의 정본은 empSeq이며 find_person으로 얻는다."
     )]
     async fn person_group(
         &self,

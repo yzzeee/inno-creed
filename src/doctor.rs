@@ -175,7 +175,7 @@ fn warn_if_direct_read(reports: &[creds::SourceReport]) {
 /// 사용자는 가장 쉬워 보이는 것(브라우저로 로그인만 다시 해보기)을 고르고 같은 자리를 맴돈다.
 fn print_next_steps() {
     println!("\n  ▶ 지금 할 일 — 확장 프로그램을 브라우저에 올리세요 (전 OS 공통 정식 경로)");
-    println!("     1. chrome://extensions (Edge는 edge://extensions)를 열고 개발자 모드를 켭니다.");
+    println!("     1. {}를 열고 개발자 모드를 켭니다.", crate::native_host::extensions_page_hint());
     match extension_folder_hint() {
         Some(dir) => println!(
             "     2. [압축해제된 확장 프로그램 로드]로 이 폴더를 고릅니다: {}",

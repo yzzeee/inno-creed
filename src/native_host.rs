@@ -1,5 +1,5 @@
 //! 브라우저 익스텐션(Chrome/Edge, `extension/`)이 Native Messaging으로 보내주는 쿠키를
-//! 받아 로컬 캐시 파일에 저장하는 쪽. `creds::from_extension_cache`가 그 파일을 읽는다.
+//! 받아 로컬 캐시 파일에 저장하는 쪽. `creds::try_extension_cache`가 그 파일을 읽는다.
 //! **전 OS에서 이 경로가 정식이다** — 등록 자리는 `manifest_targets`가 OS별로 정하고
 //! (Windows는 레지스트리+매니페스트 1개, unix는 브라우저별 디렉토리. macOS는 Chrome만),
 //! 기동마다 `ensure_installed`가 다시 맞춘다.
@@ -16,7 +16,7 @@
 //! **프로토콜**: 4바이트 네이티브 바이트오더 길이 + 그만큼의 UTF-8 JSON, 양방향 동일
 //! (Chrome/Edge Native Messaging 스펙 그대로).
 //!
-//! **호출 방식**: 브라우저가 `sendNativeMessage` 한 번마다 이 프로세스를 새로 스폰하고,
+//! **호출 방식**: 확장이 `connectNative`로 포트를 열 때마다 브라우저가 이 프로세스를 새로 스폰하고,
 //! 응답 메시지 하나를 받으면 종료시킨다 — 그래서 이 프로세스는 메시지 하나 처리하고 바로
 //! 끝나는 1회성이다. MCP 서버 본체(장수 프로세스)와는 완전히 별개 실행이고, 캐시 파일
 //! 하나로만 이어진다(소켓 없음).
@@ -181,7 +181,30 @@ fn write_manifest(path: &std::path::Path, manifest: &Value) -> Result<()> {
         .with_context(|| format!("매니페스트 쓰기 실패: {}", path.display()))
 }
 
-/// 등록 다음에 사람이 해야 하는 일. OS와 무관하게 같다.
+/// 이 OS에서 확장을 올릴 수 있는 브라우저의 확장 관리 화면 주소.
+///
+/// ⚠️ **`manifest_targets()`가 매니페스트를 놓는 브라우저와 같아야 한다.** 놓지 않는 브라우저를
+/// 여기서 권하면 사용자는 확장을 올렸는데 브릿지는 **에러 없이 조용히** 안 붙는다 — 증상만으로는
+/// 원인을 찾을 수 없다. macOS가 Chrome만인 이유는 `manifest_targets()`의 주석에 있다.
+pub fn extensions_page_hint() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        "chrome://extensions"
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        "chrome://extensions(Edge는 edge://extensions)"
+    }
+}
+
+/// 등록 다음에 사람이 해야 하는 일.
+#[cfg(target_os = "macos")]
+const LOAD_HINT: &str = "[inno-creed] 등록 완료. Chrome에서 확장 프로그램을 로드하면(chrome://extensions →\n\
+                         개발자 모드 → 압축해제된 확장 프로그램 로드 → extension/ 폴더) 로그인 즉시 크레덴셜이\n\
+                         자동으로 전달됩니다.";
+
+/// 등록 다음에 사람이 해야 하는 일.
+#[cfg(not(target_os = "macos"))]
 const LOAD_HINT: &str = "[inno-creed] 등록 완료. Chrome/Edge에서 확장 프로그램을 로드하면(chrome://extensions →\n\
                          개발자 모드 → 압축해제된 확장 프로그램 로드 → extension/ 폴더) 로그인 즉시 크레덴셜이\n\
                          자동으로 전달됩니다.";

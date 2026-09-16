@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>inno-creed — Chrome 확장 프로그램 설치 방법</title>
+<meta name="description" content="inno-creed 크레덴셜 브릿지(Chrome/Edge 확장 프로그램)를 다운로드부터 로그인까지 화면 그대로 따라가는 설치 안내.">
+<style>
+  :root{
+    --bg:#faf9f7; --bg-alt:#ffffff; --ink:#1f1b16; --ink-soft:#5b5347;
+    --line:#e7e1d6; --accent:#b5540f; --accent-ink:#ffffff;
+    --ok-bg:#eaf5ea; --ok-ink:#1f6b2b; --ok-line:#bfe0c3;
+    --warn-bg:#fff6e0; --warn-ink:#8a5a00; --warn-line:#f0d98b;
+    --no-bg:#fdeceb; --no-ink:#a33327; --no-line:#f3c7c1;
+    --code-bg:#2b2620; --code-ink:#f2ead9;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#17140f; --bg-alt:#1f1b15; --ink:#f1ece1; --ink-soft:#c9bfa9;
+      --line:#3a3327; --accent:#e08a3e; --accent-ink:#1a1208;
+      --ok-bg:#173821; --ok-ink:#8fdc9c; --ok-line:#2a5c37;
+      --warn-bg:#3a2e0c; --warn-ink:#f0c86a; --warn-line:#5c4a17;
+      --no-bg:#3a1a16; --no-ink:#f0968a; --no-line:#5c2a23;
+      --code-bg:#0f0d09; --code-ink:#f2ead9;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif;
+    line-height:1.6;
+  }
+  .wrap{max-width:820px; margin:0 auto; padding:0 20px;}
+  a{color:var(--accent);}
+
+  header.hero{padding:48px 0 34px; border-bottom:1px solid var(--line); text-align:center;}
+  header.hero .kicker{color:var(--ink-soft); font-size:.9rem; letter-spacing:.04em; font-weight:700;}
+  header.hero h1{font-size:1.9rem; margin:8px 0 10px;}
+  header.hero p{color:var(--ink-soft); margin:0 auto; max-width:640px;}
+  .cta-row{display:flex; gap:10px; justify-content:center; margin-top:22px; flex-wrap:wrap;}
+  .btn{
+    display:inline-block; padding:10px 20px; border-radius:8px; text-decoration:none;
+    font-weight:600; font-size:.95rem; border:1px solid var(--line);
+  }
+  .btn.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+  .btn.ghost{color:var(--ink); background:var(--bg-alt);}
+
+  section{padding:40px 0 10px;}
+  h2{font-size:1.3rem; margin:0 0 6px;}
+  .lead{color:var(--ink-soft); margin:0 0 24px;}
+
+  .prep{
+    background:var(--bg-alt); border:1px solid var(--line); border-radius:12px;
+    padding:20px 22px; margin-bottom:10px;
+  }
+  .prep h3{margin:0 0 10px; font-size:1.02rem;}
+  .prep ul{margin:0; padding-left:1.15em;}
+  .prep li{margin-bottom:8px; font-size:.94rem;}
+
+  ol.steps{list-style:none; margin:0; padding:0;}
+  ol.steps > li{
+    position:relative; padding:0 0 0 54px; margin:0 0 30px;
+  }
+  ol.steps > li::before{
+    counter-increment:step; content:counter(step);
+    position:absolute; left:0; top:0;
+    width:36px; height:36px; border-radius:50%;
+    background:var(--accent); color:var(--accent-ink);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:1rem;
+  }
+  ol.steps{counter-reset:step;}
+  ol.steps > li::after{
+    content:""; position:absolute; left:17px; top:44px; bottom:-22px;
+    width:2px; background:var(--line);
+  }
+  ol.steps > li:last-child::after{display:none;}
+  ol.steps h3{margin:4px 0 8px; font-size:1.1rem;}
+  ol.steps p{margin:0 0 10px; font-size:.95rem;}
+  ol.steps p:last-child{margin-bottom:0;}
+
+  figure{margin:14px 0 0;}
+  figure img{
+    max-width:100%; height:auto; display:block;
+    border:1px solid var(--line); border-radius:10px;
+    background:var(--bg-alt);
+  }
+  figure img.narrow{max-width:420px;}
+  figure img.mid{max-width:620px;}
+  figcaption{margin-top:7px; font-size:.84rem; color:var(--ink-soft);}
+
+  .note, .warn, .ok{
+    margin:14px 0 0; padding:13px 16px; border-radius:10px; font-size:.91rem; border:1px solid;
+  }
+  .note{background:var(--bg-alt); border-color:var(--line); color:var(--ink);}
+  .warn{background:var(--warn-bg); border-color:var(--warn-line); color:var(--warn-ink);}
+  .ok{background:var(--ok-bg); border-color:var(--ok-line); color:var(--ok-ink);}
+  .warn b, .ok b, .note b{color:inherit;}
+  .note p, .warn p, .ok p{margin:0 0 8px; font-size:inherit;}
+  .note p:last-child, .warn p:last-child, .ok p:last-child{margin-bottom:0;}
+
+  code, pre{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; font-size:.87rem;}
+  code{background:var(--code-bg); color:var(--code-ink); padding:2px 6px; border-radius:5px;}
+  pre{background:var(--code-bg); color:var(--code-ink); padding:13px 16px; border-radius:10px; overflow-x:auto;}
+  pre code{background:none; padding:0;}
+
+  table{width:100%; border-collapse:collapse; font-size:.9rem; margin-top:10px;}
+  th, td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top;}
+  th{color:var(--ink-soft); font-weight:600;}
+
+  details.faq{
+    background:var(--bg-alt); border:1px solid var(--line); border-radius:10px;
+    padding:14px 18px; margin-bottom:10px;
+  }
+  details.faq summary{cursor:pointer; font-weight:700; font-size:.95rem;}
+  details.faq p{margin:10px 0 0; font-size:.92rem;}
+
+  footer{padding:36px 0 60px; text-align:center; color:var(--ink-soft); font-size:.88rem; border-top:1px solid var(--line); margin-top:40px;}
+  footer a{color:var(--ink-soft);}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">inno-creed</div>
+    <h1>Chrome 확장 프로그램 설치 방법</h1>
+    <p>아마란스(<code>gw.innogrid.com</code>) 로그인 세션을 inno-creed에 넘겨주는
+    <b>크레덴셜 브릿지</b> 확장 프로그램을 설치합니다. 다운로드부터 로그인까지, 실제 화면 그대로 따라가면 됩니다.</p>
+    <div class="cta-row">
+      <a class="btn primary" href="https://github.com/zilhak/inno-creed/releases/latest">릴리즈 페이지 열기</a>
+      <a class="btn ghost" href="https://github.com/zilhak/inno-creed/blob/main/docs/INSTALL.md">전체 설치 문서</a>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="prep">
+      <h3>시작하기 전에</h3>
+      <ul>
+        <li><b>Windows 사용자에게 사실상 필수입니다.</b> 아마란스 로그인 쿠키는 브라우저가 켜져 있는 동안만 존재하는 세션 쿠키인데,
+            Windows Chrome/Edge는 그 쿠키 파일을 잠그고 암호화해 다른 프로그램이 읽지 못하게 막습니다.
+            확장 프로그램은 브라우저가 공식으로 열어준 통로를 쓰므로 이 문제를 전부 비켜 갑니다.
+            (macOS/Linux는 이 단계 없이도 동작합니다.)</li>
+        <li><b>inno-creed 본체가 먼저 설치돼 있어야 합니다.</b> GUI 인스톨러로 설치했다면 브라우저 연결 등록까지 자동으로 끝나 있습니다.
+            바이너리를 직접 내려받아 수동 등록했다면 아래 한 줄을 <b>한 번만</b> 실행해 주세요.
+            <pre><code>inno-creed --install-extension-host</code></pre></li>
+        <li><b>Edge도 같은 방법으로 됩니다.</b> 화면 이름만 조금 다릅니다 — 문서 맨 아래 "Edge는 무엇이 다른가요?"를 참고하세요.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>설치 단계</h2>
+    <p class="lead">전부 합쳐 5분이면 끝납니다.</p>
+
+    <ol class="steps">
+
+      <li>
+        <h3>릴리즈에서 <code>inno-creed-extension.zip</code>을 내려받습니다</h3>
+        <p><a href="https://github.com/zilhak/inno-creed/releases/latest">최신 릴리즈 페이지</a>를 열고
+        <b>Assets</b> 목록을 펼친 뒤, <b><code>inno-creed-extension.zip</code></b>을 눌러 내려받습니다.</p>
+        <div class="warn">
+          <p>⚠️ <b>파일 이름을 끝까지 확인하고 누르세요.</b> Assets에는 10개가 넘는 파일이 비슷한 이름으로 나란히 있습니다.
+          <code>inno-creed-installer-...</code>(설치 프로그램)나 <code>inno-creed-windows-...</code>(본체 실행 파일)는
+          <b>확장 프로그램이 아닙니다.</b> 받아야 하는 것은 <code>installer</code>도 플랫폼 이름도 붙지 않은
+          <b><code>inno-creed-extension.zip</code></b> 하나입니다.</p>
+        </div>
+        <figure>
+          <img src="assets/extension-install/01-release-assets.png" alt="릴리즈 Assets 목록에서 inno-creed-extension.zip 항목" class="mid">
+          <figcaption>Assets 목록 맨 위의 <code>inno-creed-extension.zip</code> — 이것을 누릅니다.</figcaption>
+        </figure>
+      </li>
+
+      <li>
+        <h3>내려받은 zip 파일을 확인합니다</h3>
+        <p>보통 <b>다운로드</b> 폴더에 저장됩니다. 크기는 30KB 남짓으로 아주 작습니다.</p>
+        <figure>
+          <img src="assets/extension-install/02-downloaded-zip.png" alt="다운로드 폴더의 inno-creed-extension.zip 파일" class="narrow">
+          <figcaption>내려받은 <code>inno-creed-extension.zip</code>.</figcaption>
+        </figure>
+      </li>
+
+      <li>
+        <h3>압축을 풉니다</h3>
+        <p>zip 파일을 더블클릭하면(Windows는 오른쪽 클릭 → <b>압축 풀기</b>)
+        같은 자리에 <code>inno-creed-extension</code> 폴더가 생깁니다.
+        폴더 안에는 <code>manifest.json</code>·<code>background.js</code>·<code>icons</code> <b>세 가지</b>가 들어 있습니다.</p>
+        <figure>
+          <img src="assets/extension-install/03-unzipped-folder.png" alt="압축을 푼 inno-creed-extension 폴더와 원본 zip 파일" class="narrow">
+          <figcaption>왼쪽이 압축을 푼 폴더 — <b>앞으로 쓰는 건 이 폴더</b>입니다(zip 파일이 아닙니다).</figcaption>
+        </figure>
+        <div class="note">
+          <p>폴더 안의 세 가지 중 <b>하나라도 지우면 확장이 로드되지 않습니다.</b>
+          특히 <code>icons</code> 폴더를 지우면 Chrome이 설치 자체를 거부합니다.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>폴더를 "계속 보관할 곳"으로 옮깁니다</h3>
+        <p>압축 푼 <code>inno-creed-extension</code> 폴더를 앞으로도 그대로 둘 자리로 옮겨 두세요.
+        예를 들어 <code>C:\Tools\inno-creed-extension</code> 처럼, 실수로 건드리지 않을 만한 곳이 좋습니다.</p>
+        <div class="warn">
+          <p>🚨 <b>이 폴더는 절대 지우거나 옮기면 안 됩니다.</b></p>
+          <p>Chrome은 이런 방식으로 설치한 확장을 자기 안에 복사해 두지 않고,
+          <b>여러분이 지정한 그 폴더를 계속 읽습니다.</b>
+          폴더를 지우거나 다른 곳으로 옮기면 확장이 그대로 멈추고, 아마란스 연동도 조용히 끊깁니다.</p>
+          <p>다운로드 폴더처럼 주기적으로 정리하는 자리, 바탕화면의 임시 폴더는 피하세요.
+          이미 옮겨 버렸다면 8~10단계를 다시 하면 됩니다.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>Chrome 오른쪽 위의 <b>⋮</b> 버튼을 누릅니다</h3>
+        <p>주소창 오른쪽 끝, 점 세 개가 세로로 찍힌 버튼입니다.</p>
+        <figure>
+          <img src="assets/extension-install/04-chrome-menu-button.png" alt="Chrome 우측 상단 점 세 개 메뉴 버튼" class="mid">
+          <figcaption>맨 오른쪽 <b>⋮</b> 버튼.</figcaption>
+        </figure>
+      </li>
+
+      <li>
+        <h3><b>확장 프로그램 → 확장 프로그램 관리</b>로 들어갑니다</h3>
+        <p>메뉴에서 <b>확장 프로그램</b>에 마우스를 올리면 하위 메뉴가 펼쳐집니다.
+        거기서 <b>확장 프로그램 관리</b>를 누릅니다.</p>
+        <figure>
+          <img src="assets/extension-install/05-menu-extensions.png" alt="Chrome 메뉴에서 확장 프로그램 > 확장 프로그램 관리 선택" class="mid">
+          <figcaption>확장 프로그램 → <b>확장 프로그램 관리</b>.</figcaption>
+        </figure>
+        <div class="note">
+          <p>주소창에 <code>chrome://extensions</code>를 직접 입력해도 같은 화면이 열립니다.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>확장 프로그램 관리 화면이 열립니다</h3>
+        <p>지금 설치돼 있는 확장들이 카드로 나열된 화면입니다. 여기서 다음 단계를 진행합니다.</p>
+        <figure>
+          <img src="assets/extension-install/06-extensions-page.png" alt="Chrome 확장 프로그램 관리 페이지 전체 화면">
+          <figcaption>확장 프로그램 관리 화면. 오른쪽 위에 <b>개발자 모드</b> 토글이 보입니다.</figcaption>
+        </figure>
+        <div class="note">
+          <p>"안전하지 않을 수 있는 확장 프로그램 검토" 같은 안내가 위에 떠 있어도 무시하고 진행하세요.
+          기존에 설치돼 있던 다른 확장에 대한 Chrome의 일반 안내입니다 — <b>[모두 삭제]는 누르지 마세요.</b></p>
+        </div>
+      </li>
+
+      <li>
+        <h3>오른쪽 위 <b>개발자 모드</b>를 켭니다</h3>
+        <p>화면 <b>오른쪽 위</b>의 <b>개발자 모드</b> 토글을 눌러 파란색(켜짐)으로 만듭니다.</p>
+        <figure>
+          <img src="assets/extension-install/07-developer-mode.png" alt="개발자 모드 토글이 켜진 모습" class="narrow">
+          <figcaption>이렇게 파랗게 켜져 있어야 합니다.</figcaption>
+        </figure>
+      </li>
+
+      <li>
+        <h3>왼쪽 위에 나타난 <b>압축해제된 확장 프로그램 로드</b>를 누릅니다</h3>
+        <p>개발자 모드를 켜면 화면 왼쪽 위에 버튼 세 개가 새로 생깁니다.
+        그중 맨 왼쪽 <b>압축해제된 확장 프로그램 로드</b>를 누릅니다.</p>
+        <figure>
+          <img src="assets/extension-install/08-load-unpacked.png" alt="개발자 모드를 켜면 나타나는 압축해제된 확장 프로그램 로드 버튼" class="mid">
+          <figcaption>버튼이 안 보인다면 개발자 모드가 아직 꺼진 것입니다(8단계로 돌아가세요).</figcaption>
+        </figure>
+      </li>
+
+      <li>
+        <h3>4단계에서 보관해 둔 폴더를 선택합니다</h3>
+        <p>폴더 선택 창이 열리면 <b><code>inno-creed-extension</code> 폴더</b>를 고르고
+        <b>[선택]</b>(Windows는 <b>[폴더 선택]</b>) 버튼을 누릅니다.</p>
+        <figure>
+          <img src="assets/extension-install/09-select-folder.png" alt="폴더 선택 창에서 inno-creed-extension 폴더를 선택한 모습" class="mid">
+          <figcaption>폴더를 <b>선택</b>합니다 — 안으로 들어가 파일을 고르는 게 아닙니다.
+          제대로 골랐다면 오른쪽에 <code>background.js</code>·<code>icons</code>·<code>manifest.json</code>이 보입니다.</figcaption>
+        </figure>
+        <div class="warn">
+          <p>⚠️ <b><code>.zip</code> 파일이 아니라 폴더</b>를 골라야 합니다.
+          목록에서 이름이 같아 헷갈리기 쉬우니, 아이콘이 폴더 모양인 쪽을 고르세요.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>설치 확인</h3>
+        <p>확장 목록에 <b>inno-creed 크레덴셜 브릿지</b> 카드가 생기고 오른쪽 아래 토글이 켜져 있으면 성공입니다.</p>
+        <figure>
+          <img src="assets/extension-install/10-installed-card.png" alt="설치된 inno-creed 크레덴셜 브릿지 확장 카드" class="narrow">
+          <figcaption>ID가 <code>hpabcmnjaahhdenpdmfjlmkfjljdldbf</code>로 보이면 정상입니다 — 이 값은 어디에 풀든 항상 같습니다.</figcaption>
+        </figure>
+        <div class="note">
+          <p>카드에 <b>"서비스 워커: 비활성"</b>이라고 떠도 정상입니다.
+          필요할 때만 깨어나는 방식이라 평소에는 비활성으로 표시됩니다.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>아마란스에 로그인합니다</h3>
+        <p>마지막입니다. 같은 브라우저에서 <a href="https://gw.innogrid.com">gw.innogrid.com</a>에 접속해
+        <b>로그인</b>하세요. 확장이 로그인 세션을 감지해 inno-creed에 자동으로 전달합니다.</p>
+        <figure>
+          <img src="assets/extension-install/11-amaranth-login.png" alt="아마란스(gw.innogrid.com) 로그인 화면">
+          <figcaption>이미 로그인돼 있다면 그대로 두면 됩니다. 이후 로그인·로그아웃할 때마다 자동으로 동기화됩니다.</figcaption>
+        </figure>
+        <div class="ok">
+          <p>✅ <b>여기까지가 전부입니다.</b> 확장을 다시 로드하거나 무언가를 복사해 넣을 필요는 없습니다.</p>
+        </div>
+      </li>
+
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>제대로 됐는지 확인하기</h2>
+    <p class="lead">터미널(Windows는 PowerShell)에서 아래를 실행하면 크레덴셜을 어디서 잡았는지, 실제 인증이 되는지까지 한 화면에 보여줍니다.</p>
+    <pre><code>inno-creed doctor</code></pre>
+    <p><code>[실제 인증 확인]</code>이 ✅면 끝난 것입니다. 토큰 값은 출력되지 않으므로 그대로 캡처해 공유해도 됩니다.</p>
+    <div class="note">
+      <p>Claude에서 도구 목록이 보이는 것과 인증 성공은 <b>별개</b>입니다.
+      서버는 크레덴셜이 없어도 실행되고, 도구를 부를 때 로그인 안내를 돌려줍니다.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>자주 막히는 곳</h2>
+
+    <details class="faq">
+      <summary>Edge는 무엇이 다른가요?</summary>
+      <p>과정은 같고 이름과 위치만 다릅니다.</p>
+      <table>
+        <tr><th>단계</th><th>Chrome</th><th>Edge</th></tr>
+        <tr><td>관리 화면</td><td><code>chrome://extensions</code></td><td><code>edge://extensions</code> · <b>⋯</b> 메뉴 → 확장</td></tr>
+        <tr><td>개발자 모드 위치</td><td>화면 <b>오른쪽 위</b></td><td>화면 <b>왼쪽 아래</b></td></tr>
+        <tr><td>불러오기 버튼</td><td>압축해제된 확장 프로그램 로드</td><td>압축 풀린 파일 로드</td></tr>
+      </table>
+      <p>⚠️ Edge를 새로 켤 때 <b>"개발자 모드에서 확장 사용 해제"</b> 경고가 뜰 수 있습니다.
+      여기서 <b>[확장 사용 해제]를 누르면 방금 설치한 확장이 꺼집니다</b> — <b>[나중에]</b>를 누르세요.
+      Edge가 개발자 모드 확장 전체에 주기적으로 띄우는 일반 경고이지, inno-creed에 문제가 있다는 뜻이 아닙니다.</p>
+      <p>Chrome과 Edge 둘 다에서 쓰려면 같은 폴더를 양쪽에 각각 로드하면 됩니다.</p>
+    </details>
+
+    <details class="faq">
+      <summary>폴더를 실수로 지웠습니다 / 옮겼습니다</summary>
+      <p>확장이 동작을 멈춥니다. zip을 다시 받아 압축을 풀고, 보관할 자리에 둔 뒤
+      9~10단계(압축해제된 확장 프로그램 로드 → 폴더 선택)를 다시 하면 됩니다.
+      확장 ID는 바뀌지 않으므로 다른 설정을 손댈 필요는 없습니다.</p>
+    </details>
+
+    <details class="faq">
+      <summary>"매니페스트 파일이 없거나 읽을 수 없습니다" 오류가 납니다</summary>
+      <p>폴더를 잘못 골랐을 때 나옵니다. <code>manifest.json</code>이 <b>바로 안에</b> 들어 있는 폴더를 골라야 합니다.
+      압축을 두 번 풀어 <code>inno-creed-extension/inno-creed-extension/</code>처럼 겹쳐 있는 경우가 흔하니,
+      폴더를 열어 <code>manifest.json</code>이 보이는 층을 선택하세요.</p>
+    </details>
+
+    <details class="faq">
+      <summary>확장은 설치했는데 Claude에서 로그인이 안 됐다고 합니다</summary>
+      <p>세 가지를 확인하세요.</p>
+      <p>① 같은 브라우저에서 <code>gw.innogrid.com</code>에 <b>로그인돼 있는지</b>.
+      ② 확장 카드의 토글이 <b>켜져 있는지</b>.
+      ③ 본체를 수동 설치했다면 <code>inno-creed --install-extension-host</code>를 <b>실행했는지</b>
+      (GUI 인스톨러를 썼다면 자동으로 끝나 있습니다).</p>
+      <p>그래도 안 되면 <code>inno-creed doctor</code> 결과를 확인하세요.</p>
+    </details>
+
+    <details class="faq">
+      <summary>회사 정책으로 개발자 모드가 막혀 있습니다</summary>
+      <p>확장 설치가 불가능한 환경에서는 브라우저 개발자 도구(F12) → Application → Cookies에서
+      쿠키 값을 직접 복사해 넣는 최후 수단이 있습니다.
+      <a href="https://github.com/zilhak/inno-creed/blob/main/docs/INSTALL.md#크레덴셜-직접-지정-브라우저-읽기-우회">전체 설치 문서의 "크레덴셜 직접 지정"</a>을 참고하세요.</p>
+    </details>
+
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a href="index.html">설치 가이드 홈</a> ·
+    <a href="https://github.com/zilhak/inno-creed">GitHub 저장소</a> ·
+    <a href="https://github.com/zilhak/inno-creed/blob/main/docs/INSTALL.md">전체 설치 문서</a>
+  </div>
+</footer>
+
+</body>
+</html>

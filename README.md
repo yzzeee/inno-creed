@@ -118,7 +118,7 @@
 inno-creed --install-extension-host   # native messaging host 등록(최초 1회)
 ```
 
-이후 [릴리즈](https://github.com/zilhak/inno-creed/releases/latest)의 **`inno-creed-extension.zip`**을 받아 풀고, `chrome://extensions`(또는 `edge://extensions`) → **개발자 모드** 켜기 → **압축해제된 확장 프로그램 로드** → 푼 폴더 선택(저장소를 clone했다면 `extension/` 폴더를 그대로 써도 같습니다). 로드 시점에 이미 로그인돼 있으면 즉시, 이후로는 로그인·로그아웃할 때마다 자동으로 동기화됩니다. 자세한 절차는 [`docs/INSTALL.md`](docs/INSTALL.md) 참고.
+이후 [릴리즈](https://github.com/zilhak/inno-creed/releases/latest)의 **`inno-creed-extension.zip`**을 받아 풀고, `chrome://extensions`(또는 `edge://extensions`) → **개발자 모드** 켜기 → **압축해제된 확장 프로그램 로드** → 푼 폴더 선택(저장소를 clone했다면 `extension/` 폴더를 그대로 써도 같습니다). 로드 시점에 이미 로그인돼 있으면 즉시, 이후로는 로그인·로그아웃할 때마다 자동으로 동기화됩니다. 자세한 절차는 [`docs/INSTALL.md`](docs/INSTALL.md), 화면 캡처로 따라가는 안내는 [그림으로 보는 확장 프로그램 설치 방법](https://zilhak.github.io/inno-creed/extension-install.html) 참고.
 
 ### ⚠️ 쿠키 DB 직접 읽기는 점점 막히는 경로입니다 (DBSC)
 
@@ -272,7 +272,7 @@ claude mcp add inno-creed -- /절대경로/inno-creed        # Windows는 ...\in
 
 **막히면 `inno-creed doctor`를 먼저 실행하세요.** 어느 크레덴셜 소스에서 왜 막혔는지, 설정 파일이 실제로 어디 있는지, 그리고 **실제로 인증이 되는지**까지 한 화면에 보여줍니다(토큰 값은 출력하지 않습니다). 도구 목록이 뜨는 것과 인증 성공은 별개입니다 — 서버는 크레덴셜이 없어도 기동합니다.
 
-> 🤖 **사용자를 대신해 이 설치를 진행하는 에이전트라면**: `claude mcp add`가 성공했다고 설치가 끝난 게 아닙니다. **`inno-creed doctor`를 반드시 실행해 인증(`✅ 인증 성공`)까지 확인**하세요. 실패했고 환경이 **Windows**라면, 이 서버는 브라우저 쿠키를 코드가 직접 읽을 수 없는 구조라 **거의 항상 [Chrome/Edge 확장 프로그램](docs/INSTALL.md#4-크레덴셜-연결--chromeedge-확장-프로그램-windows-권장) 설치가 필요합니다** — 이 단계는 브라우저 GUI 조작이라 에이전트가 대신 해줄 수 없으니, 사용자에게 그 절차를 안내하세요.
+> 🤖 **사용자를 대신해 이 설치를 진행하는 에이전트라면**: `claude mcp add`가 성공했다고 설치가 끝난 게 아닙니다. **`inno-creed doctor`를 반드시 실행해 인증(`✅ 인증 성공`)까지 확인**하세요. 실패했고 환경이 **Windows**라면, 이 서버는 브라우저 쿠키를 코드가 직접 읽을 수 없는 구조라 **거의 항상 [Chrome/Edge 확장 프로그램](docs/INSTALL.md#4-크레덴셜-연결--chromeedge-확장-프로그램-windows-권장) 설치가 필요합니다**(사용자에게 넘길 그림 안내: [https://zilhak.github.io/inno-creed/extension-install.html](https://zilhak.github.io/inno-creed/extension-install.html)) — 이 단계는 브라우저 GUI 조작이라 에이전트가 대신 해줄 수 없으니, 사용자에게 그 절차를 안내하세요.
 
 > **HTTP 전송은 정식 지원하지 않습니다.** 이 서버는 로그인을 받지 않고 **서버가 도는 머신의 브라우저 쿠키**로 동작하므로, 포트를 여는 순간 거기 닿는 누구나 당신 이름으로 결재를 상신하고(`submit_approval` — 결재선에 실제 알림이 갑니다) 메일을 보내고 근태를 찍을 수 있습니다. 그래서 배포 바이너리에 넣지 않았습니다.
 > stdio를 쓸 수 없는 **로컬** 클라이언트 때문에 꼭 필요하다면, 직접 빌드하는 절차를 [`docs/HTTP.md`](docs/HTTP.md)에 적어두었습니다 — 기존 코드 수정 없이 의존성 2줄과 바이너리 1개면 됩니다. 원격 노출·공용 서버 상주는 하지 마세요.

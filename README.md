@@ -156,7 +156,7 @@ Chrome은 **Device Bound Session Credentials(DBSC)**를 2026년 4월(Chrome 146,
 inno-creed doctor
 ```
 
-크레덴셜 소스별 결과, 익스텐션 브릿지·크레덴셜 파일·Claude Desktop 설정 파일의 실제 위치, 그리고 **실제로 인증이 되는지**(gw에 1회 요청)까지 확인합니다. 토큰 값은 출력하지 않습니다.
+크레덴셜 소스별 결과, 익스텐션 브릿지·크레덴셜 파일·Claude Desktop 설정 파일의 실제 위치, 그리고 **실제로 인증이 되는지**(gw에 요청 1회, 401이면 재취득 후 1회 더)까지 확인합니다. 토큰 값은 출력하지 않습니다.
 
 ### 크레덴셜 직접 지정 (수동)
 
@@ -198,7 +198,7 @@ Claude Desktop의 **채팅·Cowork 탭**에서 쓸 거라면, JSON을 직접 안
 
 압축을 풀면 나오는 `installer`(Windows는 `installer.exe`)를 실행하세요. **`installer`와 `payload/` 폴더를 같은 자리에 둔 채로 실행해야 합니다** — `installer`만 따로 옮기면 설치할 파일을 못 찾습니다. 자세한 화면별 안내는 [`docs/INSTALL.md`](docs/INSTALL.md) 참고. Claude Code CLI 전용으로만 쓸 거라면 아래 프리빌트 바이너리 방식이 더 간단합니다.
 
-다음 릴리즈 및 현재 소스 빌드부터 ZIP에 GUI용 `installer`와 터미널용 `installer-cli`가 함께 들어갑니다. Windows에서는 `installer-cli.exe`를 더블클릭하면 콘솔 창이 열리고, 완료·오류 후 Enter로 닫습니다. PowerShell에서는 `.\installer-cli.exe`로 실행하고, 제거는 `--uninstall`을 붙입니다.
+v2.3.1부터 ZIP에 GUI용 `installer`와 터미널용 `installer-cli`가 함께 들어갑니다. Windows에서는 `installer-cli.exe`를 더블클릭하면 콘솔 창이 열리고, 완료·오류 후 Enter로 닫습니다. PowerShell에서는 `.\installer-cli.exe`로 실행하고, 제거는 `--uninstall`을 붙입니다.
 
 기존 릴리즈에 `installer-cli`가 없다면 v2.2.0부터 지원하는 `installer --cli`를 사용하세요. Windows PowerShell에서는 `Start-Process .\installer.exe -ArgumentList '--cli' -NoNewWindow -Wait`로 실행해야 입력이 섞이지 않습니다.
 
@@ -282,7 +282,7 @@ inno-creed (Rust MCP 서버, 헤드리스)
  ├─ creds    환경변수 → 확장 프로그램 캐시(권장) → Chrome → Edge(Win) → Firefox(비-Win)
  │           → 크레덴셜 파일 → authToken / signKey. 소스별 실패 사유는 diagnose()가 한 곳에서 만든다
  ├─ doctor   `inno-creed doctor` — 위 진단 + 설정 파일 탐색 + 실제 인증 왕복 1회
- ├─ native_host  확장 프로그램(`extension/`)의 Native Messaging 수신(1회성) · 호스트 등록(기동 시 자동) · 확장 파일 꺼내기
+ ├─ native_host  확장 프로그램(`extension/`)의 Native Messaging 수신(1회성) · 호스트 등록(기동 시 자동)
  ├─ sign     wehago-sign(HMAC-SHA256) · transaction-id 생성
  ├─ util     도메인 무관 순수 함수(날짜 변환 · JSON 필드 추출)
  ├─ client   세션 lazy 취득(10분 TTL 캐시) · 헤더 주입 · POST · 응답 파싱
@@ -295,7 +295,7 @@ inno-creed (Rust MCP 서버, 헤드리스)
 
 ## 안전 규약
 
-- **응답 성공 ≠ 실제 반영** — 서버는 권한 밖 대상에 대해 `successTf:true`를 주면서 실제로는 무시(silent no-op)합니다. 그래서 모든 mutation은 직후 **재조회(read-back)로 실제 상태를 확인**하고, 반영되지 않았으면 실패로 처리합니다.
+- **응답 성공 ≠ 실제 반영** — 서버는 권한 밖 대상에 대해 `successTf:true`를 주면서 실제로는 무시(silent no-op)합니다. 그래서 등록·수정 계열 mutation은 직후 **재조회(read-back)로 실제 상태를 확인**하고, 반영되지 않았으면 실패로 처리합니다. (삭제는 대상이 사라져 되읽을 것이 없는 경우가 있어 — `delete_mail`은 휴지통 이동으로 muid가 재부여됩니다 — 서버 판정을 그대로 씁니다.)
 - **소유권 가드** — 쓰기 도구는 대상의 소유자(예약은 `empSeq`, 일정은 `createSeq`)가 본인일 때만 실행하고, 아니면 명시적 에러를 냅니다. 서버도 남의 데이터 수정을 무시하지만, MCP에서 먼저 걸러 원인을 분명히 알려줍니다. 이 두 규약은 도구 층이 아니라 **각 도메인 모듈의 mutation 함수(`*_and_verify`) 안**에 있어 어떤 호출자도 우회할 수 없습니다.
 - **메일 본문은 `body`에 일반 텍스트·Markdown으로 입력** — HTML 변환·서명은 도구가 처리합니다. 이전 `html` 인자, 본문 누락·공백·직접 HTML은 오류입니다. 초안 저장 후 본문을 검증하고, 발송 시 검증한 본문이 유지됐는지 확인합니다. 웹·구버전 초안이나 검증 기록이 없는 다른 머신의 초안은 웹에서 보내거나 새로 작성해야 합니다. 바이너리 교체 후 MCP를 재연결하세요.
 - **부작용 있는 도구는 명시** — 근태 punch(`attendance_clock_in`/`attendance_clock_out`), 상신(`submit_approval`), 게시글 열람(`read_notice`, 조회수 증가), 메일 열람(`read_mail`, 읽음 처리 — `mark_mail_unread`로 되돌림)은 실제 기록이 남습니다. 사용자가 명시적으로 지시할 때만 호출하세요. 메일 발송은 되돌릴 수 없어 한 단계 더 두었습니다 — 지시받았더라도 `save_mail_draft`로 초안을 만들어 `list_mail_drafts`로 확인받은 뒤 `send_mail_from_draft`로 **그 초안을 그대로** 보냅니다(확인받은 형상과 발송물이 어긋나지 않고, 원본 초안 정리까지 그 도구가 합니다). 사용자가 즉시 발송을 지시하면 그때만 `send_mail`로 곧바로 보냅니다.

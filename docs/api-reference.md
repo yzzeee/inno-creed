@@ -1159,7 +1159,7 @@ body: a10Domain=https://gw.innogrid.com        # 유일 파라미터
 ## 공통 안전 규약
 
 - **소유권 가드**: 자원/일정 mutation은 대상 소유자(`empSeq`/`createSeq`)==본인일 때만 실행, 아니면 명시적 에러.
-- **read-back 검증**: 모든 mutation 직후 재조회로 실제 반영 확인. 서버가 `successTf:true`를 주며 무시(no-op)하는 경우 방어. 자원 시간수정은 새 seqNum/resIdx로, 일정은 유지된 schSeq로 재조회.
+- **read-back 검증**: 등록·수정 mutation 직후 재조회로 실제 반영 확인(삭제는 되읽을 대상이 남지 않아 서버 판정 + 재확인 안내). 서버가 `successTf:true`를 주며 무시(no-op)하는 경우 방어. 자원 시간수정은 새 seqNum/resIdx로, 일정은 유지된 schSeq로 재조회.
 
 ## 미조사 (다음 단계)
 

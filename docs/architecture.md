@@ -82,7 +82,7 @@ Firefox(**Windows에서는 시도 안 함** — 아래 참고). 첫 성공에서
   --native-host`(브라우저가 직접 스폰, 인자는 `chrome-extension://<id>/`이지 우리가 정한
   플래그가 아님 — `main.rs`가 이 접두도 native-host 모드로 인식)를 호출 → 로컬 캐시 파일
   (`extension_cache_path()`, OS별 표준 로컬 데이터 디렉토리, `INNO_CREED_EXTENSION_CACHE`로
-  오버라이드)에 씀 → `from_extension_cache()`가 매 취득마다 그 파일을 읽음.
+  오버라이드)에 씀 → `try_extension_cache()`가 매 취득마다 그 파일을 읽음.
 - 등록: **MCP 서버가 뜰 때마다 `native_host::ensure_installed()`가 자동으로 맞춘다**(내용이 같으면
   쓰지 않는다). 사람이 기억해야 하는 단계로 두면 빠지고, 빠지면 브릿지가 에러 없이 조용히 안 붙는다.
   MCP 클라이언트가 실행하는 경로가 곧 브라우저가 스폰할 경로이므로 손으로 등록하는 것보다 정확하고,
@@ -211,7 +211,9 @@ wehago-sign = Base64( HMAC_SHA256( authToken ‖ transactionId ‖ timestamp ‖
 
 서버는 **권한 밖 대상을 수정 요청받으면 `successTf:true`를 주면서 실제로는 무시(silent no-op)** 한다. 실증: 남이 만든 예약의 "내용"을 수정 요청 → 응답 성공 → **재조회하니 그대로**. 따라서:
 
-> 모든 mutation(등록/수정/삭제)은 직후 **재조회(read-back)로 실제 상태를 확인**하고, 반영이 안 됐으면 실패로 처리한다.
+> 등록·수정 mutation은 직후 **재조회(read-back)로 실제 상태를 확인**하고, 반영이 안 됐으면 실패로 처리한다.
+> 삭제는 되읽을 대상이 남지 않는 경우가 있어(`delete_mail`은 휴지통 이동으로 muid 재부여, `delete_temp_approval`은
+> SSE 결과 판정) 서버 판정을 쓰고, 필요한 재확인 방법을 응답에 적어 돌려준다.
 
 **구현 위치**: 도구 층이 아니라 **각 도메인 모듈의 mutation 함수 안**이다(`resource::reserve/update/cancel_and_verify`, `calendar::create/update/delete_event_and_verify`, `attendance::punch_and_verify`, `approval_submit::cancel_and_verify`, `mail::save_mail_draft`, `approval_line::save_line/delete_line`). 검증 없는 raw 래퍼도 남아 있으나 새 호출부는 검증하는 쪽을 쓴다 — 규칙이 모듈에 있어야 MCP를 거치지 않는 호출자도 우회할 수 없다.
 

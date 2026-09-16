@@ -10,7 +10,7 @@ inno-creed는 **stdio 전송만** 정식 지원합니다. Streamable HTTP 전송
 
 ### 1. 크레덴셜은 "서버를 띄운 사람" 것이다
 
-inno-creed는 로그인을 받지 않습니다. **서버가 도는 머신의 브라우저 쿠키를 복호화**해 `authToken`/`signKey`를 얻습니다([architecture.md §3](architecture.md#3-크레덴셜-취득-chrome--firefox--macoslinuxwindows)). MCP 프로토콜에는 요청자를 구분할 개념이 없으므로, **포트에 접속한 모두가 서버를 띄운 사람 본인으로 동작**합니다.
+inno-creed는 로그인을 받지 않습니다. **서버가 도는 머신의 브라우저 쿠키를 복호화**해 `authToken`/`signKey`를 얻습니다([architecture.md §3](architecture.md#3-크레덴셜-취득-익스텐션--chromeedge--firefox--macoslinuxwindows)). MCP 프로토콜에는 요청자를 구분할 개념이 없으므로, **포트에 접속한 모두가 서버를 띄운 사람 본인으로 동작**합니다.
 
 그래서 이 서버에는 "다중 사용자"가 존재할 수 없습니다. 원격에 띄워 여러 명이 붙는 구성은 권한 분리가 되는 게 아니라, **한 사람의 계정을 여러 명이 공유**하는 것입니다.
 

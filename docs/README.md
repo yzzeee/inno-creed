@@ -8,9 +8,9 @@ inno-creed의 기술 문서. 프로젝트 소개·도구 목록은 [루트 READM
 | [index.html](index.html) | 위 설치 가이드의 웹 랜딩페이지 — Claude 환경(CLI/Code/Cowork/웹)을 먼저 고르게 하는 탭 구성 |
 | [installer-guide.html](installer-guide.html) | 설치 프로그램으로 설치하기 — 내려받기부터 확장 프로그램 연결까지 실제 화면 캡처 8단계 ([웹](https://zilhak.github.io/inno-creed/installer-guide.html)) |
 | [installer-cli.html](installer-cli.html) | 창이 안 뜰 때 쓰는 `installer-cli` 안내 — Enter만 눌러도 설치되는 흐름과 각 물음의 뜻 ([웹](https://zilhak.github.io/inno-creed/installer-cli.html)) |
-| [mac-first-run.html](mac-first-run.html) | macOS에서 인스톨러가 "열 수 없음"으로 차단될 때 허용하는 방법 — 차단 화면부터 시스템 설정 [그래도 열기]까지 캡처 6단계(`installer`·`inno-creed` 두 번) ([웹](https://zilhak.github.io/inno-creed/mac-first-run.html)) |
+| [mac-first-run.html](mac-first-run.html) | macOS에서 인스톨러가 "열 수 없음"으로 차단될 때 허용하는 방법 — 차단 화면부터 시스템 설정 [그래도 열기]까지 캡처 6단계 ([웹](https://zilhak.github.io/inno-creed/mac-first-run.html)) |
 | [extension-install.html](extension-install.html) | Chrome/Edge 확장 프로그램 설치 방법 — 다운로드부터 아마란스 로그인까지 실제 화면 캡처 12단계 ([웹](https://zilhak.github.io/inno-creed/extension-install.html)) |
-| [architecture.md](architecture.md) | 브라우저가 필요 없는 이유, 모듈 구조, 크레덴셜 취득(Chrome/Firefox 쿠키 복호화), authToken·세션 정보, `wehago-sign` 서명 규격, 응답 봉투, 안전 규약(read-back·소유권 가드) |
+| [architecture.md](architecture.md) | 브라우저가 필요 없는 이유, 모듈 구조, 크레덴셜 취득(확장 브릿지 · 브라우저 쿠키 복호화), authToken·세션 정보, `wehago-sign` 서명 규격, 응답 봉투, 안전 규약(read-back·소유권 가드) |
 | [api-reference.md](api-reference.md) | 모듈별 확정 API 스키마 — 자원(회의실)·일정·메일·게시판·전자결재·근태·조직도의 엔드포인트, 요청/응답 필드, 실측으로 확인한 함정 |
 | [HTTP.md](HTTP.md) | HTTP 전송을 정식 지원하지 않는 이유(크레덴셜=서버 머신 소유자, 되돌릴 수 없는 쓰기 도구, 서버 기준 파일 경로)와, 로컬 한정으로 꼭 필요할 때 직접 빌드하는 절차 |
 | [../tests/live/README.md](../tests/live/README.md) | 라이브 스모크 테스트 — 실제 아마란스에 붙어 도구 58개 중 53개(금지·SKIP 제외)를 왕복시키는 하네스의 안전장치(CI 차단·마커 기반 삭제 가드·잔여물 대장)와 실행법 |

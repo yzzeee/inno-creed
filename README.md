@@ -114,11 +114,7 @@
 
 `gw.innogrid.com`의 로그인 쿠키(`BIZCUBE_AT`/`BIZCUBE_HK`)는 **세션 쿠키**라 브라우저가 켜져 있는 동안만 존재합니다. 확장 프로그램은 브라우저가 공식으로 열어준 `cookies` API로 평문 값을 바로 읽어 Native Messaging(로컬 프로세스 스폰 + stdio, 소켓 불필요)으로 inno-creed에 전달하므로, 세션 쿠키가 디스크에 없든 파일이 잠겨 있든 상관없이 동작합니다. 쿠키 DB 직접 읽기는 Windows에서는 파일 잠금·`v20` app-bound 암호화까지 겹쳐 사실상 항상 실패하고, macOS·Linux에서도 **되는지가 환경에 달려 있습니다** — Chrome "중단한 위치에서 계속하기"가 꺼져 있으면 세션 쿠키가 디스크에 없고, 키체인 접근을 거부하거나 `secret-tool`이 없으면 그대로 막힙니다. 보장되는 경로가 아니라서 **전 OS 공통으로 확장을 필수로 안내합니다.** 게다가 직접 읽기는 아래([DBSC](#️-쿠키-db-직접-읽기는-점점-막히는-경로입니다-dbsc)) 이유로 점점 더 막히는 추세입니다.
 
-```sh
-inno-creed extension          # 확장 파일을 꺼내놓고 native host까지 등록, 폴더 경로를 알려준다
-```
-
-이 명령이 알려준 폴더를 `chrome://extensions`(또는 `edge://extensions`) → **개발자 모드** 켜기 → **압축해제된 확장 프로그램 로드**로 올리면 끝입니다(릴리즈의 **`inno-creed-extension.zip`**을 받아 풀어 써도, 저장소를 clone했다면 `extension/` 폴더를 그대로 써도 같습니다). 로드 시점에 이미 로그인돼 있으면 즉시, 이후로는 로그인·로그아웃할 때마다 자동으로 동기화됩니다. GUI 인스톨러로 설치했다면 이 단계가 설치 과정에 이미 들어 있습니다. native host 등록은 **MCP 서버가 뜰 때마다 자동으로** 맞춰지므로 따로 신경 쓸 필요가 없습니다(수동 재등록은 `inno-creed --install-extension-host`). 자세한 절차는 [`docs/INSTALL.md`](docs/INSTALL.md), 화면 캡처로 따라가는 안내는 [그림으로 보는 확장 프로그램 설치 방법](https://zilhak.github.io/inno-creed/extension-install.html) 참고.
+[릴리즈](https://github.com/zilhak/inno-creed/releases/latest)의 **`inno-creed-extension.zip`**을 받아 풀고, `chrome://extensions`(또는 `edge://extensions`) → **개발자 모드** 켜기 → **압축해제된 확장 프로그램 로드** → 푼 폴더 선택(저장소를 clone했다면 `extension/` 폴더를 그대로 써도 같습니다. 푼 폴더는 지우지 마세요 — 브라우저가 원본 폴더를 계속 읽습니다). 로드 시점에 이미 로그인돼 있으면 즉시, 이후로는 로그인·로그아웃할 때마다 자동으로 동기화됩니다. GUI 인스톨러로 설치했다면 이 단계가 설치 과정에 이미 들어 있습니다. native host 등록은 **MCP 서버가 뜰 때마다 자동으로** 맞춰지므로 따로 신경 쓸 필요가 없습니다(수동 재등록은 `inno-creed --install-extension-host`). 자세한 절차는 [`docs/INSTALL.md`](docs/INSTALL.md), 화면 캡처로 따라가는 안내는 [그림으로 보는 확장 프로그램 설치 방법](https://zilhak.github.io/inno-creed/extension-install.html) 참고.
 
 ### ⚠️ 쿠키 DB 직접 읽기는 점점 막히는 경로입니다 (DBSC)
 
@@ -135,7 +131,7 @@ Chrome은 **Device Bound Session Credentials(DBSC)**를 2026년 4월(Chrome 146,
 | **Edge 쿠키 직접 읽기** | — | — | Chrome과 동일(`v20`은 항상 거부) |
 | **Firefox 쿠키 직접 읽기** | ✅ (쿠키 평문) | ✅ | **미지원** — 이 사이트의 세션 쿠키를 실행 중엔 디스크에 안 써서 시도 자체를 안 함 |
 
-- **전 OS 공통으로 확장 프로그램이 정식 경로**입니다. 세션쿠키·파일잠금·`v20` 암호화·키체인/키링 권한 문제를 전부 우회합니다. native host 등록은 서버 기동 때 자동으로 되고, 확장 파일은 `inno-creed extension`이 꺼내줍니다.
+- **전 OS 공통으로 확장 프로그램이 정식 경로**입니다. 세션쿠키·파일잠금·`v20` 암호화·키체인/키링 권한 문제를 전부 우회합니다. native host 등록은 서버 기동 때 자동으로 되므로, 사람이 하는 일은 확장 zip을 받아 브라우저에 로드하는 것뿐입니다.
 - **macOS·Linux의 쿠키 직접 읽기는 "되기도 한다"입니다.** 세션 쿠키가 디스크에 없거나(Chrome "중단한 위치에서 계속하기" 꺼짐) 키체인·키링 권한이 막히면 그대로 실패합니다 — 그래서 폴백으로만 둡니다. unix는 레지스트리 없이 브라우저별 `NativeMessagingHosts/` 디렉토리에 매니페스트를 놓는 것이 등록이고, macOS는 Chrome 자리만 씁니다.
 - **Windows Firefox는 지원하지 않기로 확정했습니다** — 파일 기반 읽기가 원천적으로 안 되고(위 DBSC 섹션), Firefox 확장 프로그램은 Mozilla AMO 서명 없이는 Chrome/Edge처럼 "압축해제 로드"로 못 깔아서 손쉬운 우회책도 없습니다. Windows는 Chrome/Edge 확장 프로그램을 쓰세요.
 - **어떤 경로로도 못 가져오면** 값을 직접 지정할 수 있습니다(아래 [크레덴셜 직접 지정](#크레덴셜-직접-지정-수동)).
@@ -217,7 +213,7 @@ Claude Desktop(채팅·Cowork·Code 탭)에서 쓸 거라면, JSON을 직접 안
 | Linux aarch64 | `inno-creed-linux-aarch64` |
 | Windows x86_64 | `inno-creed-windows-x86_64.exe` |
 | Windows ARM64 | `inno-creed-windows-aarch64.exe` |
-| 확장 프로그램(전 OS) | `inno-creed-extension.zip` — 안 받아도 됩니다(`inno-creed extension`이 같은 파일을 꺼냅니다) |
+| **확장 프로그램(전 OS 필수)** | `inno-creed-extension.zip` |
 
 macOS·Linux는 내려받은 뒤 실행 권한을 부여하세요: `chmod +x inno-creed-*`. (macOS에서 Gatekeeper가 막으면 `xattr -d com.apple.quarantine <파일>`.)
 
@@ -274,7 +270,7 @@ claude mcp add inno-creed -- /절대경로/inno-creed        # Windows는 ...\in
 
 **막히면 `inno-creed doctor`를 먼저 실행하세요.** 어느 크레덴셜 소스에서 왜 막혔는지, 설정 파일이 실제로 어디 있는지, 그리고 **실제로 인증이 되는지**까지 한 화면에 보여줍니다(토큰 값은 출력하지 않습니다). 도구 목록이 뜨는 것과 인증 성공은 별개입니다 — 서버는 크레덴셜이 없어도 기동합니다.
 
-> 🤖 **사용자를 대신해 이 설치를 진행하는 에이전트라면**: `claude mcp add`가 성공했다고 설치가 끝난 게 아닙니다. **`inno-creed doctor`를 반드시 실행해 인증(`✅ 인증 성공`)까지 확인**하세요. 실패했다면 OS를 불문하고 **[Chrome/Edge 확장 프로그램](docs/INSTALL.md#4-크레덴셜-연결--chromeedge-확장-프로그램-필수) 설치가 정답입니다**(`inno-creed extension`을 실행하면 파일을 꺼내고 등록까지 끝나고, 남는 것은 사용자가 브라우저에 그 폴더를 올리는 한 단계뿐입니다)(사용자에게 넘길 그림 안내: [https://zilhak.github.io/inno-creed/extension-install.html](https://zilhak.github.io/inno-creed/extension-install.html)) — 이 단계는 브라우저 GUI 조작이라 에이전트가 대신 해줄 수 없으니, 사용자에게 그 절차를 안내하세요.
+> 🤖 **사용자를 대신해 이 설치를 진행하는 에이전트라면**: `claude mcp add`가 성공했다고 설치가 끝난 게 아닙니다. **`inno-creed doctor`를 반드시 실행해 인증(`✅ 인증 성공`)까지 확인**하세요. 실패했다면 OS를 불문하고 **[Chrome/Edge 확장 프로그램](docs/INSTALL.md#4-크레덴셜-연결--chromeedge-확장-프로그램-필수) 설치가 정답입니다**(native host 등록은 서버가 뜰 때 자동으로 끝나 있으므로, 남는 것은 `inno-creed-extension.zip`을 받아 사용자가 브라우저에 올리는 단계뿐입니다)(사용자에게 넘길 그림 안내: [https://zilhak.github.io/inno-creed/extension-install.html](https://zilhak.github.io/inno-creed/extension-install.html)) — 이 단계는 브라우저 GUI 조작이라 에이전트가 대신 해줄 수 없으니, 사용자에게 그 절차를 안내하세요.
 
 > **HTTP 전송은 정식 지원하지 않습니다.** 이 서버는 로그인을 받지 않고 **서버가 도는 머신의 브라우저 쿠키**로 동작하므로, 포트를 여는 순간 거기 닿는 누구나 당신 이름으로 결재를 상신하고(`submit_approval` — 결재선에 실제 알림이 갑니다) 메일을 보내고 근태를 찍을 수 있습니다. 그래서 배포 바이너리에 넣지 않았습니다.
 > stdio를 쓸 수 없는 **로컬** 클라이언트 때문에 꼭 필요하다면, 직접 빌드하는 절차를 [`docs/HTTP.md`](docs/HTTP.md)에 적어두었습니다 — 기존 코드 수정 없이 의존성 2줄과 바이너리 1개면 됩니다. 원격 노출·공용 서버 상주는 하지 마세요.

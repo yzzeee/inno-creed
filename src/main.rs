@@ -62,7 +62,6 @@ async fn main() -> Result<()> {
     match args.first().map(String::as_str) {
         Some("doctor") => std::process::exit(doctor::run().await),
         Some("auth") => return auth_cmd(args.get(1).map(String::as_str)),
-        Some("extension") => return extension_cmd(args.get(1).map(String::as_str)),
         // 오타를 조용히 삼키고 서버로 뜨면, 사용자는 "명령이 먹통"으로만 본다.
         Some(other) => bail!("알 수 없는 인자: {other}\n`inno-creed --help`로 사용법을 확인하세요."),
         None => {}
@@ -111,35 +110,12 @@ fn print_help() {
          \x20 inno-creed doctor                     크레덴셜·설정이 어디서 막혔는지 진단합니다.\n\
          \x20 inno-creed auth set                   BIZCUBE_AT/BIZCUBE_HK를 크레덴셜 파일에 저장합니다.\n\
          \x20 inno-creed auth clear                 저장된 크레덴셜 파일을 지웁니다.\n\
-         \x20 inno-creed extension [폴더]           확장 프로그램 파일을 꺼내놓고 native host를 등록합니다.\n\
          \x20 inno-creed --install-extension-host   Chrome/Edge 확장용 native host를 다시 등록합니다(기동 시 자동).\n\
          \x20 inno-creed --version                  버전을 출력합니다.\n\
          \n\
          설치가 막히면 먼저 `inno-creed doctor`를 실행하세요.",
         env!("CARGO_PKG_VERSION")
     );
-}
-
-/// 확장 설치를 한 명령으로 끝낸다 — 파일을 꺼내놓고, native host를 등록하고, 사람이 해야 할
-/// 마지막 한 단계(브라우저에서 그 폴더를 로드)를 경로와 함께 알려준다.
-///
-/// 브라우저에 로드하는 것만은 자동화할 수 없다(확장 설치는 사용자 제스처를 요구하는 브라우저
-/// 정책이다). 그 한 단계만 남기고 나머지는 전부 여기서 끝낸다.
-fn extension_cmd(dest: Option<&str>) -> Result<()> {
-    let dir = native_host::unpack_extension(dest.map(std::path::PathBuf::from))?;
-    native_host::install(native_host::DEFAULT_EXTENSION_ID)?;
-    println!(
-        "\n확장 프로그램 파일을 꺼내놨습니다:\n  {}\n\n\
-         남은 한 단계 — 브라우저에서 이 폴더를 로드하세요(자동으로 못 하는 부분입니다):\n\
-         \x20 1. chrome://extensions (Edge는 edge://extensions) 를 엽니다.\n\
-         \x20 2. 개발자 모드를 켭니다(Chrome은 우측 상단, Edge는 좌측 하단).\n\
-         \x20 3. \"압축해제된 확장 프로그램 로드\"(Edge는 \"압축 풀린 파일 로드\")로 위 폴더를 선택합니다.\n\
-         \x20 4. https://gw.innogrid.com 에 로그인하면 즉시 연결됩니다.\n\n\
-         ⚠️ 이 폴더를 지우면 확장도 사라집니다 — 브라우저가 원본 폴더를 계속 읽습니다.\n\
-         확인: inno-creed doctor",
-        dir.display()
-    );
-    Ok(())
 }
 
 fn auth_cmd(sub: Option<&str>) -> Result<()> {

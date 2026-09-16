@@ -82,7 +82,7 @@ https://github.com/zilhak/inno-creed
 이 MCP 설치해줘
 ```
 
-그 후, Claude의 안내에 따라 확장 프로그램을 설치하세요(**전 OS 필수** — [4번](#4-크레덴셜-연결--chromeedge-확장-프로그램-필수) 참고). 명령은 `inno-creed extension` 하나입니다.
+그 후, Claude의 안내에 따라 확장 프로그램을 설치하세요(**전 OS 필수** — [4번](#4-크레덴셜-연결--chromeedge-확장-프로그램-필수) 참고).
 
 ---
 
@@ -91,7 +91,7 @@ https://github.com/zilhak/inno-creed
 - **MCP 클라이언트** — [Claude Code](https://claude.com/claude-code)(권장) 또는 stdio MCP를 지원하는 클라이언트. 이게 없으면 바이너리를 실행해도 아무 일도 안 합니다(입력을 기다리다 종료).
 - **로그인된 브라우저** — Chrome/Edge로 `https://gw.innogrid.com` 에 로그인된 **데스크톱** 환경. (헤드리스 서버·외부인 사용 불가)
 - **이노그리드 사내 계정.**
-- **Chrome/Edge 확장 프로그램 — 필수입니다(전 OS).** [4번](#4-크레덴셜-연결--chromeedge-확장-프로그램-필수) 참고. 인스톨러를 쓰면 설치 과정에 포함되고, 맨 바이너리라면 `inno-creed extension` 한 줄입니다. 확장 없이 쿠키 DB를 직접 읽는 폴백이 있긴 하지만 **환경에 따라 되기도 안 되기도 해서 보장되지 않습니다**(Windows는 사실상 항상 실패).
+- **Chrome/Edge 확장 프로그램 — 필수입니다(전 OS).** [4번](#4-크레덴셜-연결--chromeedge-확장-프로그램-필수) 참고. 인스톨러를 쓰면 설치 과정에 포함되고, 맨 바이너리로 설치했다면 `inno-creed-extension.zip`을 따로 받아 로드합니다. 확장 없이 쿠키 DB를 직접 읽는 폴백이 있긴 하지만 **환경에 따라 되기도 안 되기도 해서 보장되지 않습니다**(Windows는 사실상 항상 실패).
 
 지원 바이너리: **macOS(Apple Silicon)**, **Linux x86_64 / aarch64**, **Windows x86_64 / ARM64**.
 > Intel 맥용 바이너리는 제공하지 않습니다(필요하면 [소스 빌드](#부록-소스-빌드)).
@@ -114,9 +114,9 @@ https://github.com/zilhak/inno-creed
 | Linux aarch64 | `inno-creed-linux-aarch64` |
 | Windows x86_64 | `inno-creed-windows-x86_64.exe` |
 | Windows ARM64 | `inno-creed-windows-aarch64.exe` |
-| 확장 프로그램(전 OS) | `inno-creed-extension.zip` — **받지 않아도 됩니다**. `inno-creed extension`이 같은 파일을 꺼내줍니다(4번) |
+| **확장 프로그램(전 OS 필수)** | `inno-creed-extension.zip` — 4번에서 씁니다 |
 
-> 위는 **수동 설치용 맨 바이너리**입니다. GUI 인스톨러(`inno-creed-installer-<OS>.zip`, [0번](#0-비개발자라면--gui-인스톨러-권장))를 쓴다면 이 표의 파일은 받을 필요가 없습니다 — 인스톨러 zip이 `payload/` 안에 실행 파일과 확장 프로그램을 이미 담고 있습니다(전 OS).
+> 위는 **수동 설치용 맨 바이너리**입니다. GUI 인스톨러(`inno-creed-installer-<OS>.zip`, [0번](#0-비개발자라면--gui-인스톨러-권장))를 쓴다면 이 표의 파일은 받을 필요가 없습니다 — 인스톨러 zip이 `payload/` 안에 실행 파일과 확장 프로그램을 이미 담고 있습니다(전 OS) — 위 표의 확장 zip도 받을 필요가 없습니다.
 
 ---
 
@@ -214,21 +214,17 @@ GUI 인스톨러와 `installer --cli`는 확장 파일을 설치 폴더에 깔�
 
 ### 맨 바이너리로 설치했다면
 
-1. **확장 파일을 꺼냅니다.** 릴리즈 zip을 따로 받을 필요 없습니다 — 바이너리가 갖고 있습니다.
-   ```sh
-   inno-creed extension          # Windows: C:\...\inno-creed.exe extension
-   ```
-   확장 파일을 표준 위치에 풀고, native host 등록까지 한 뒤, **그 폴더 경로**를 출력합니다.
-   ⚠️ **출력된 폴더를 지우지 마세요** — 브라우저는 압축해제 확장을 원본 폴더에서 계속 읽습니다. 지우면 확장도 사라집니다.
-   (원하는 자리에 두고 싶으면 `inno-creed extension /둘/경로`. 릴리즈의 `inno-creed-extension.zip`을 받아 풀어 써도 같습니다.)
+1. [릴리즈](https://github.com/zilhak/inno-creed/releases/latest)에서 **`inno-creed-extension.zip`**을 받아 **압축을 풉니다**(예: `C:\Tools\inno-creed-extension\`, macOS·Linux는 `~/inno-creed-extension` 등 보관해 둘 자리면 어디든).
+   ⚠️ **푼 폴더를 지우지 마세요** — 브라우저는 압축해제 확장을 원본 폴더에서 계속 읽습니다. 지우면 확장도 사라집니다.
+   (저장소를 clone했다면 `extension/` 폴더를 그대로 써도 같습니다.)
 2. 확장 프로그램 관리 화면을 엽니다.
    - **Chrome**: 주소창에 `chrome://extensions` 입력, 또는 툴바 오른쪽 위 퍼즐 아이콘 → **확장 프로그램 관리**.
    - **Edge**: 주소창에 `edge://extensions` 입력, 또는 `…` 메뉴 → **확장**.
 3. **개발자 모드**를 켭니다. **Chrome은 화면 우측 상단**, **Edge는 화면 좌측 하단**에 토글이 있습니다(둘 다 껐다 켜져 있는지 헷갈리기 쉬우니 위치를 참고하세요).
-4. **압축해제된 확장 프로그램을 로드합니다**(Chrome은 이 이름 그대로, Edge는 **압축 풀린 파일 로드**) → 1번이 알려준 폴더를 선택합니다. 목록에 "inno-creed 크레덴셜 브릿지" 카드가 뜨고 토글이 켜져 있으면 성공입니다.
+4. **압축해제된 확장 프로그램을 로드합니다**(Chrome은 이 이름 그대로, Edge는 **압축 풀린 파일 로드**) → 1번에서 압축을 푼 `inno-creed-extension` 폴더를 선택합니다. 목록에 "inno-creed 크레덴셜 브릿지" 카드가 뜨고 토글이 켜져 있으면 성공입니다.
 5. `https://gw.innogrid.com`에 로그인돼 있으면(또는 방금 로그인하면) 자동으로 크레덴셜이 전달됩니다. 이후로도 로그인·로그아웃할 때마다 자동으로 동기화됩니다 — 매번 다시 로드할 필요 없습니다.
 
-> **native host 등록은 신경 쓰지 않아도 됩니다.** MCP 서버가 뜰 때마다 자기 실행 경로에 맞춰 자동으로 등록합니다(바이너리를 옮겨도 다음 기동에 스스로 고쳐집니다). `inno-creed extension`도 같이 해주고, 수동으로 다시 걸려면 `inno-creed --install-extension-host`입니다.
+> **native host 등록은 신경 쓰지 않아도 됩니다.** MCP 서버가 뜰 때마다 자기 실행 경로에 맞춰 자동으로 등록합니다(바이너리를 옮겨도 다음 기동에 스스로 고쳐집니다). 수동으로 다시 걸려면 `inno-creed --install-extension-host`입니다.
 >
 > 등록되는 브라우저는 **Windows·Linux는 Chrome과 Edge, macOS는 Chrome만**입니다(맥은 Edge를 지원하지 않습니다). Chrome/Edge 둘 다에서 쓰려면 확장을 두 브라우저 각각에 로드하면 됩니다 — 같은 폴더를 그대로 쓰면 되고, 등록은 이미 양쪽 다 돼 있습니다.
 
@@ -238,9 +234,9 @@ GUI 인스톨러와 `installer --cli`는 확장 파일을 설치 폴더에 깔�
 >
 > 확장 ID는 `manifest.json`의 고정 공개키(`key`)로 결정되므로 **어디에 풀든, 몇 번을 다시 로드하든 바뀌지 않습니다**(`hpabcmnjaahhdenpdmfjlmkfjljdldbf`). 등록되는 허용 origin이 이 ID라서, 그 값이 흔들리면 브릿지가 조용히 끊깁니다 — 그래서 키를 박아두었습니다.
 >
-> 폴더 안에는 `manifest.json`·`background.js`·`icons/` 세 가지가 있습니다. **셋 다 있어야 로드됩니다** — 매니페스트가 아이콘 파일을 선언하고 있어서, `icons/`를 지우면 Chrome이 로드 자체를 거부합니다.
+> 압축을 풀면 `manifest.json`·`background.js`·`icons/` 세 가지가 나옵니다. **셋 다 있어야 로드됩니다** — 매니페스트가 아이콘 파일을 선언하고 있어서, `icons/`를 지우면 Chrome이 로드 자체를 거부합니다.
 >
-> 소스에서 직접 쓰고 싶다면 저장소의 `extension/` 폴더를 그대로 로드해도 같습니다(바이너리가 내장한 것도, zip도 그 폴더의 런타임 파일입니다).
+> 소스에서 직접 쓰고 싶다면 저장소의 `extension/` 폴더를 그대로 로드해도 같습니다(zip은 그 폴더의 런타임 파일만 추린 것입니다).
 
 ## 5. 로그인 & 확인
 
@@ -279,7 +275,7 @@ Chrome은 **Device Bound Session Credentials(DBSC)**를 2026년 4월(Chrome 146)
 
 ### 자주 걸리는 경우
 
-- **아직 확장 프로그램을 안 썼다면** → 4번으로 가서 설치하세요(`inno-creed extension`). OS를 불문하고 가장 확실합니다.
+- **아직 확장 프로그램을 안 썼다면** → 4번으로 가서 설치하세요. OS를 불문하고 가장 확실합니다.
 - **`BIZCUBE_AT`이 세션 쿠키라 DB에 없음** → DevTools에서 `BIZCUBE_AT` 행의 **Expires**가 `Session`이면 그 값은 **디스크에 기록되지 않습니다**. 쿠키 DB 직접 읽기로는 절대 잡히지 않으니 확장 프로그램(4번)을 쓰거나, 아래 **크레덴셜 직접 지정**을 쓰세요.
   (macOS/Linux에서 확장 없이 쓰고 있다면) Chrome **설정 → 시작 그룹 → "중단한 위치에서 계속하기"**를 켜면 세션 쿠키가 디스크에 보존되면서 자동 추출로 전환됩니다.
 - **Ubuntu 등에서 Firefox가 snap/flatpak** → 프로필 경로가 표준(`~/.mozilla/firefox`)과 달라 못 찾습니다. 환경변수로 지정:

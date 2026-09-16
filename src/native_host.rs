@@ -106,52 +106,6 @@ fn clear_cache() -> Result<()> {
     }
 }
 
-/// 확장 프로그램의 런타임 파일 일습. 저장소 `extension/`의 것을 **빌드 시점에 그대로 박아
-/// 넣는다.**
-///
-/// **왜 내장하나**: 설치 경로가 셋인데(GUI 인스톨러 · `installer --cli` · `claude mcp add`),
-/// 앞의 둘은 `payload/extension/`으로 확장 파일이 따라가지만 **맨 바이너리 경로만 사용자가
-/// 릴리즈에서 zip을 따로 받아와야 했다.** 그 한 단계 때문에 확장 설치가 "설치 절차"가 아니라
-/// "나중에 하는 별도 숙제"가 된다. 바이너리가 스스로 꺼내놓으면 세 경로가 같은 모양이 되고,
-/// 바이너리와 확장의 버전이 어긋날 여지도 없어진다.
-///
-/// installer가 실행 파일을 내장하지 않는 원칙(`installer/src/payload.rs`)과 어긋나지 않는다 —
-/// 거기서 피하려는 것은 "exe 안에 exe를 넣었다가 디스크에 풀어쓰기"(백신 드로퍼 휴리스틱)이고,
-/// 여기 담기는 것은 json·js·png 정적 자산이다.
-const EXTENSION_FILES: &[(&str, &[u8])] = &[
-    ("manifest.json", include_bytes!("../extension/manifest.json")),
-    ("background.js", include_bytes!("../extension/background.js")),
-    ("icons/icon16.png", include_bytes!("../extension/icons/icon16.png")),
-    ("icons/icon32.png", include_bytes!("../extension/icons/icon32.png")),
-    ("icons/icon48.png", include_bytes!("../extension/icons/icon48.png")),
-    ("icons/icon128.png", include_bytes!("../extension/icons/icon128.png")),
-];
-
-/// 확장 파일을 꺼내놓고 그 폴더를 돌려준다. 기본 위치는 캐시 파일과 같은 데이터 디렉토리 —
-/// 사용자가 임의로 푼 폴더와 달리 **지워질 일이 적은 자리**여야 한다. Chrome은 압축해제 확장을
-/// 로드한 그 원본 폴더에서 계속 읽으므로, 폴더가 사라지면 확장도 사라진다.
-///
-/// 이미 있으면 덮어쓴다(업그레이드). 구버전에만 있던 파일이 남는 문제는 목록이 고정이라
-/// 발생하지 않는다.
-pub fn unpack_extension(dest: Option<PathBuf>) -> Result<PathBuf> {
-    let dir = match dest {
-        Some(d) => d,
-        None => extension_cache_path()?
-            .parent()
-            .context("데이터 디렉토리를 정할 수 없습니다")?
-            .join("extension"),
-    };
-    for (name, bytes) in EXTENSION_FILES {
-        let path = dir.join(name);
-        let parent = path.parent().context("확장 파일 부모 경로 없음")?;
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("확장 폴더 생성 실패: {}", parent.display()))?;
-        std::fs::write(&path, bytes)
-            .with_context(|| format!("확장 파일 쓰기 실패: {}", path.display()))?;
-    }
-    Ok(dir)
-}
-
 /// native host 매니페스트를 놓을 자리와, 그 자리를 읽는 브라우저 이름(진단 문구용).
 /// **`install`(쓰기)과 `doctor`(확인)가 공유한다** — 경로를 두 군데 적으면 "등록했는데
 /// doctor는 없다고 한다"가 생긴다.

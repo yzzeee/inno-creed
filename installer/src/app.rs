@@ -34,6 +34,10 @@ pub struct InstallerApp {
     doctor_expanded: bool,
     /// `platform::extension_browsers()`에서 고른 항목의 인덱스.
     ext_browser: usize,
+    /// Claude Desktop 실행 여부를 마지막으로 확인한 시각(매 프레임 확인하면 과하다).
+    last_app_check: Option<Instant>,
+    /// 종료 요청을 보낸 시각. 이걸 기준으로 "그래도 안 꺼지면" 강제 종료를 내민다.
+    quit_requested_at: Option<Instant>,
     copied_at: Option<Instant>,
 }
 
@@ -77,6 +81,8 @@ impl Default for InstallerApp {
             doctor_ok: false,
             doctor_expanded: false,
             ext_browser: 0,
+            last_app_check: None,
+            quit_requested_at: None,
             copied_at: None,
         }
     }
@@ -129,14 +135,19 @@ impl InstallerApp {
                     let _ = open::that("https://claude.ai/download");
                 }
             });
-            ui.add_space(12.0);
-            ui.group(|ui| {
-                ui.set_width(460.0);
-                ui.label(
-                    "이 설치 프로그램은 아직 코드 서명이 되어 있지 않습니다. Windows가 \
-                     \"PC를 보호했습니다\" 경고를 띄우면 [추가 정보] → [실행]을 눌러주세요.",
-                );
-            });
+            // 이 안내는 Windows에서만 뜻이 있다. macOS의 차단은 문구가 다르고 절차도 달라서
+            // (시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기) 여기서 안내할 수 없고,
+            // 애초에 그 화면을 넘긴 사람만 이 창을 보고 있다.
+            #[cfg(target_os = "windows")]
+            {
+                ui.add_space(12.0);
+                ui.group(|ui| {
+                    ui.set_width(460.0);
+                    ui.label(
+                        "Windows가 \"PC를 보호했습니다\" 경고를 띄우면 [추가 정보] → [실행]을 눌러주세요.",
+                    );
+                });
+            }
 
             ui.add_space(28.0);
             if ui
@@ -259,25 +270,68 @@ impl InstallerApp {
         });
     }
 
+    /// 꺼졌는지 **스스로** 1초마다 확인한다. 사용자가 직접 껐든 아래 버튼으로 껐든,
+    /// "다시 확인"을 누르게 만들지 않기 위해서다. 매 프레임 확인하지 않는 것은
+    /// `is_claude_desktop_running`이 프로세스 목록을 통째로 훑기 때문이다.
+    fn claude_still_running(&mut self, ctx: &egui::Context) -> bool {
+        ctx.request_repaint_after(Duration::from_millis(300));
+        let now = Instant::now();
+        let due = self
+            .last_app_check
+            .is_none_or(|t| now.duration_since(t) >= Duration::from_secs(1));
+        if !due {
+            return true;
+        }
+        self.last_app_check = Some(now);
+        config_kit::is_claude_desktop_running()
+    }
+
     fn app_running_screen(&mut self, ui: &mut egui::Ui) {
+        if !self.claude_still_running(ui.ctx()) {
+            self.quit_requested_at = None;
+            self.screen = Screen::Installing;
+            return;
+        }
         ui.vertical_centered(|ui| {
             ui.heading("Claude Desktop을 종료해주세요");
             ui.add_space(12.0);
             ui.label("설정 파일을 안전하게 쓰려면 Claude Desktop이 완전히 꺼져 있어야 합니다.");
-            ui.label("(창을 닫아도 트레이에 남아있을 수 있습니다 — 트레이 아이콘에서도 종료해주세요.)");
+            ui.label("(창을 닫아도 트레이에 남아있을 수 있습니다 — 아래 버튼으로 대신 꺼드립니다.)");
             ui.add_space(20.0);
-            ui.horizontal(|ui| {
-                if ui.button("다시 확인").clicked() {
-                    self.screen = if config_kit::is_claude_desktop_running() {
-                        Screen::AppRunning
-                    } else {
-                        Screen::Installing
-                    };
-                }
-                if ui.button("← 이전").clicked() {
-                    self.screen = Screen::Confirm;
-                }
-            });
+            if ui
+                .add(egui::Button::new("Claude Desktop 종료하기").min_size(egui::vec2(200.0, 34.0)))
+                .clicked()
+            {
+                platform::request_quit_claude_desktop();
+                self.quit_requested_at = Some(Instant::now());
+                // 방금 보낸 요청이 반영될 틈을 준다 — 곧바로 다시 세면 아직 살아 있다.
+                self.last_app_check = Some(Instant::now());
+            }
+            ui.small("종료 요청을 보냅니다. 꺼지면 설치가 저절로 이어집니다.");
+
+            // 종료 요청을 보냈는데도 안 꺼지는 경우가 있다(트레이에만 남는 구현 등).
+            // 그때만 강제 종료를 내민다 — 처음부터 보여주면 눌러도 되는 버튼처럼 보인다.
+            if self
+                .quit_requested_at
+                .is_some_and(|t| t.elapsed() >= Duration::from_secs(6))
+            {
+                ui.add_space(14.0);
+                ui.group(|ui| {
+                    ui.set_width(420.0);
+                    ui.label("아직 꺼지지 않았습니다. 강제로 종료할 수 있습니다.");
+                    ui.small("저장하지 않은 대화나 작업이 있으면 잃을 수 있습니다.");
+                    if ui.button("강제 종료").clicked() {
+                        platform::force_quit_claude_desktop();
+                        self.last_app_check = Some(Instant::now());
+                    }
+                });
+            }
+
+            ui.add_space(20.0);
+            if ui.button("← 이전").clicked() {
+                self.quit_requested_at = None;
+                self.screen = Screen::Confirm;
+            }
         });
     }
 
@@ -522,16 +576,33 @@ impl InstallerApp {
     }
 
     fn uninstall_app_running_screen(&mut self, ui: &mut egui::Ui) {
+        if !self.claude_still_running(ui.ctx()) {
+            self.quit_requested_at = None;
+            self.do_uninstall();
+            return;
+        }
         ui.vertical_centered(|ui| {
             ui.heading("Claude Desktop을 종료해주세요");
             ui.add_space(12.0);
             ui.label("설정 파일을 안전하게 고치려면 Claude Desktop이 완전히 꺼져 있어야 합니다.");
+            ui.label("(창을 닫아도 트레이에 남아있을 수 있습니다 — 아래 버튼으로 대신 꺼드립니다.)");
             ui.add_space(20.0);
-            if ui.button("다시 확인").clicked() {
-                if config_kit::is_claude_desktop_running() {
-                    self.screen = Screen::UninstallAppRunning;
-                } else {
-                    self.do_uninstall();
+            if ui
+                .add(egui::Button::new("Claude Desktop 종료하기").min_size(egui::vec2(200.0, 34.0)))
+                .clicked()
+            {
+                platform::request_quit_claude_desktop();
+                self.quit_requested_at = Some(Instant::now());
+                self.last_app_check = Some(Instant::now());
+            }
+            if self
+                .quit_requested_at
+                .is_some_and(|t| t.elapsed() >= Duration::from_secs(6))
+            {
+                ui.add_space(14.0);
+                if ui.button("강제 종료").clicked() {
+                    platform::force_quit_claude_desktop();
+                    self.last_app_check = Some(Instant::now());
                 }
             }
         });

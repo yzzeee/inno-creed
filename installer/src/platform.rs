@@ -74,6 +74,60 @@ pub fn post_copy(dest: &Path) {
     }
 }
 
+/// Claude Desktop에 **정상 종료**를 요청한다.
+///
+/// 설정 파일을 쓰기 전에 앱이 꺼져 있어야 하는데, 이 앱은 창을 닫아도 트레이/메뉴바에
+/// 남아서 사람들이 "껐다"고 생각한 채로 다음 단계로 온다. 그래서 인스톨러가 대신 눌러준다.
+///
+/// 강제 종료가 아니라 **종료 요청**이다(macOS는 quit 애플이벤트, Windows는 `WM_CLOSE`,
+/// Linux는 `SIGTERM`) — 앱이 스스로 상태를 저장하고 닫을 기회를 준다. 이것으로 안 닫히는
+/// 경우에만 `force_quit_claude_desktop`을 쓴다.
+pub fn request_quit_claude_desktop() {
+    #[cfg(target_os = "macos")]
+    {
+        let ok = std::process::Command::new("/usr/bin/osascript")
+            .args(["-e", r#"tell application id "com.anthropic.claudefordesktop" to quit"#])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if !ok {
+            // 애플이벤트를 못 받는 상태(응답 없음 등)면 정중한 종료 신호로 한 번 더.
+            let _ = std::process::Command::new("/usr/bin/pkill").args(["-x", "Claude"]).status();
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // /F 없이 = 창에 닫기 요청. 트레이에 남는 구현이면 안 꺼질 수 있어 force가 뒤를 받는다.
+        let _ = std::process::Command::new("taskkill").args(["/IM", "Claude.exe"]).status();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("pkill").args(["-x", "Claude"]).status();
+    }
+}
+
+/// 마지막 수단. 정상 종료 요청이 통하지 않을 때만 쓴다 — 앱이 저장하지 못한 것이 있으면 잃는다.
+/// macOS는 헬퍼 프로세스까지 함께 정리한다(메인만 죽이면 `is_claude_desktop_running`이
+/// 헬퍼를 보고 계속 "켜져 있음"이라 답한다).
+pub fn force_quit_claude_desktop() {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("/usr/bin/pkill")
+            .args(["-9", "-f", "/Claude.app/Contents/"])
+            .status();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/T", "/IM", "Claude.exe"])
+            .status();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("pkill").args(["-9", "-x", "Claude"]).status();
+    }
+}
+
 /// 확장 관리 화면 주소는 브라우저마다 다른데, 설치 프로그램은 사용자가 어느 쪽을 쓰는지
 /// 알 수 없다. 그래서 열어주는 대신 **어느 주소를 보여줄지**만 사용자가 고른다.
 pub struct Browser {

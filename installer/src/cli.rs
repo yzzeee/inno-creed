@@ -54,6 +54,11 @@ fn run(
     )?;
     writeln!(output, "취소하려면 Ctrl+C를 누르세요.")?;
     if !uninstall {
+        // GUI가 안 뜨는 환경의 폴백 경로다. 여기까지 온 사람에게 선택지를 물어 세우지 말고,
+        // 아무것도 고르지 않아도 끝나게 한다 — 모든 물음에 기본값이 있다.
+        writeln!(output, "그냥 Enter만 계속 눌러도 기본값으로 설치됩니다.")?;
+    }
+    if !uninstall {
         payload::verify_payload_present().map_err(anyhow::Error::msg)?;
     }
     let candidates = config_kit::desktop_config_candidates();
@@ -114,25 +119,43 @@ fn run(
                 .unwrap_or("확인 불가")
         )?;
     }
-    if !confirm(
-        input,
-        output,
-        if uninstall {
-            "제거하시겠습니까?"
-        } else {
-            "설치하시겠습니까?"
-        },
-    )? {
+    let proceed = if uninstall {
+        confirm(input, output, "제거하시겠습니까?")?
+    } else {
+        confirm_default_yes(input, output, "설치하시겠습니까?")?
+    };
+    if !proceed {
         writeln!(output, "취소했습니다.")?;
         return Ok(None);
     }
+    // Enter만 눌러도 끝까지 간다: 첫 Enter는 정상 종료 요청, 그래도 살아 있으면 다음 Enter가
+    // 강제 종료다. 강제 쪽을 처음부터 Enter에 걸지 않는 것은, 앱이 스스로 닫을 기회를 한 번은
+    // 줘야 저장하지 못한 것을 잃지 않기 때문이다. 무엇이 일어날지는 그때그때 프롬프트에 적는다.
+    let mut asked_to_quit = false;
     while config_kit::is_claude_desktop_running() {
-        writeln!(output, "Claude Desktop을 트레이에서도 완전히 종료해주세요.")?;
-        prompt(
-            input,
-            output,
-            "종료 후 Enter로 다시 확인합니다 (취소: Ctrl+C): ",
-        )?;
+        let answer = if asked_to_quit {
+            writeln!(
+                output,
+                "아직 Claude Desktop이 켜져 있습니다. 강제로 종료할 수 있습니다(저장하지 않은 작업은 잃을 수 있습니다)."
+            )?;
+            prompt(input, output, "Enter=강제 종료 / s=다시 확인만 (취소: Ctrl+C): ")?
+        } else {
+            writeln!(
+                output,
+                "Claude Desktop이 켜져 있습니다(창을 닫아도 트레이·메뉴바에 남습니다)."
+            )?;
+            prompt(input, output, "Enter=대신 종료 / s=직접 껐으니 다시 확인 (취소: Ctrl+C): ")?
+        };
+        if !answer.is_empty() {
+            continue; // 무엇을 입력했든 "다시 확인"으로 다룬다.
+        }
+        if asked_to_quit {
+            crate::platform::force_quit_claude_desktop();
+        } else {
+            crate::platform::request_quit_claude_desktop();
+            asked_to_quit = true;
+        }
+        wait_until_closed(output)?;
     }
     if uninstall {
         let keep = install_dir.join("installer-cli.exe");
@@ -193,7 +216,7 @@ fn run(
             writeln!(output, "Edge의 확장 사용 해제 경고에서는 '나중에'를 선택하세요.")?;
         }
     }
-    if confirm(
+    if confirm_default_yes(
         input,
         output,
         "아마란스 로그인 후 인증 진단(doctor)을 실행하시겠습니까?",
@@ -319,6 +342,39 @@ fn prompt(
     Ok(answer.trim().to_owned())
 }
 
+/// 종료 요청을 보낸 뒤 실제로 꺼질 때까지 잠깐 기다린다. 요청 직후 바로 다시 세면
+/// 아직 살아 있어서, 사용자에게 "안 꺼졌다"는 잘못된 인상을 준다.
+fn wait_until_closed(output: &mut impl Write) -> anyhow::Result<bool> {
+    writeln!(output, "종료를 기다리는 중...")?;
+    for _ in 0..12 {
+        if !config_kit::is_claude_desktop_running() {
+            return Ok(true);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+    Ok(false)
+}
+
+/// Enter를 **승낙**으로 받는 확인. 되돌릴 수 있는 일(설치·진단)에만 쓴다.
+/// 입력이 끊긴 경우(EOF)는 여전히 오류다 — 파이프로 흘러든 무언가가 설치를 진행시키면 안 된다.
+fn confirm_default_yes(
+    input: &mut impl BufRead,
+    output: &mut impl Write,
+    label: &str,
+) -> anyhow::Result<bool> {
+    loop {
+        match prompt(input, output, &format!("{label} [Y/n]: "))?
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "" | "y" | "yes" => return Ok(true),
+            "n" | "no" => return Ok(false),
+            _ => writeln!(output, "y 또는 n을 입력해주세요(Enter=y).")?,
+        }
+    }
+}
+
+/// Enter를 **거절**로 받는 확인. 지우는 일처럼 되돌릴 수 없는 것에만 쓴다.
 fn confirm(input: &mut impl BufRead, output: &mut impl Write, label: &str) -> anyhow::Result<bool> {
     loop {
         match prompt(input, output, &format!("{label} [y/N]: "))?
@@ -363,6 +419,17 @@ mod tests {
         assert!(!confirm(&mut &b"no\n"[..], &mut output, "설치?").unwrap());
         assert!(confirm(&mut &b"maybe\nYES\n"[..], &mut output, "설치?").unwrap());
         assert!(confirm(&mut &b""[..], &mut output, "설치?").is_err());
+    }
+
+    /// 폴백 경로의 약속 — Enter만 눌러도 설치가 진행돼야 한다. 다만 EOF는 사람이 누른
+    /// Enter가 아니므로 여전히 거절한다.
+    #[test]
+    fn enter_accepts_reversible_confirmations_but_eof_does_not() {
+        let mut output = Vec::new();
+        assert!(confirm_default_yes(&mut &b"\n"[..], &mut output, "설치?").unwrap());
+        assert!(!confirm_default_yes(&mut &b"n\n"[..], &mut output, "설치?").unwrap());
+        assert!(confirm_default_yes(&mut &b"maybe\n\n"[..], &mut output, "설치?").unwrap());
+        assert!(confirm_default_yes(&mut &b""[..], &mut output, "설치?").is_err());
     }
 
     #[test]

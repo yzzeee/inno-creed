@@ -3,6 +3,9 @@
 use anyhow::{anyhow, bail, Result};
 use serde_json::{json, Value};
 
+mod body;
+pub use body::render_body;
+
 use crate::client::GwClient;
 use crate::error::InvalidInput;
 use crate::modules::board::{collapse_ws, html_to_text, json_str};
@@ -476,7 +479,7 @@ async fn attachment_fields(c: &GwClient, attachments: &[String]) -> Result<(Stri
     Ok((uploaded, attachments.len().to_string()))
 }
 
-/// 메일 발송 — `mail014A01`(작성폼 초기화) → `mail014A04`(multipart) 2단계.
+/// 메일 발송 — Markdown 초안 저장·본문 검증 후 해당 초안을 그대로 발송한다.
 /// A01 응답에서 sessionKey/filedir/email/externalSendLimit/bigFileDay/groupMailOption을 동적 취득.
 /// ⚠️ 발송은 헤더 서명 + **body 내 authToken**(형식 `loginId|groupSeq|empSeq|secret`)을 함께 요구.
 /// `to`/`cc`/`bcc`는 표시형("이름 <email>") 또는 이메일이고, **여러 명이면 콤마로 잇는다**
@@ -488,32 +491,18 @@ pub async fn send_mail(
     cc: &str,
     bcc: &str,
     subject: &str,
-    html: &str,
+    body: &str,
     attachments: &[String],
     signature: bool,
 ) -> Result<Value> {
-    let init = compose_init(c).await?;
-    // 첨부: 로컬 파일을 mail014A06(multipart `file[]`)로 업로드 → uidAuthList 조립.
-    let (uid_auth_list, big_file_cnt) = attachment_fields(c, attachments).await?;
-    let (html, signature_attached) = with_signature(html, &init, signature);
-    let cf = ComposeForm::new(&init, to, subject, &html, uid_auth_list, big_file_cnt)
-        .with_carbon_copy(cc, bcc);
-
-    // 폼을 "만드는 방법"으로 넘긴다 — 401 재취득 재시도 때 클라이언트가 재조립해야 하기 때문
-    // (`multipart::Form`은 Clone이 아니고 전송이 소비한다). 호출당 최대 2회 평가된다.
-    let v = c.call_multipart("/mail/mail014A04", || cf.build(c)).await?;
-    // 발송 응답은 표준 봉투로 감싸짐: {"resultCode":0,"resultData":{"result":true,"muid":..,"resultMessage":"SUCCESS"}}
-    let rd = v.get("resultData").unwrap_or(&v);
-    let ok = rd.get("result").and_then(|r| r.as_bool()).unwrap_or(false);
-    if !ok {
-        bail!("메일 발송 실패: {v}");
-    }
-    // 서버 응답에 우리 관측값 하나를 얹는다(응답이 객체가 아닌 형태로 오면 그냥 흘린다).
-    let mut out = rd.clone();
-    if let Some(o) = out.as_object_mut() {
-        o.insert("signature_attached".into(), json!(signature_attached));
-    }
-    Ok(out)
+    let draft = save_mail_draft(c, to, cc, bcc, subject, body, attachments, signature).await?;
+    let muid = draft["draft_muid"].as_str().ok_or_else(|| anyhow!("검증된 draft_muid 없음 — 발송하지 않았습니다"))?;
+    let mut sent = send_mail_from_draft(c, muid, "").await
+        .map_err(|error| anyhow!("draft_muid={muid} 발송 단계 오류 — 자동 재발송하지 말고 초안 및 보낸메일함을 확인하세요: {error:#}"))?;
+    sent["ok"] = json!(true);
+    sent["signature_attached"] = draft["signature_attached"].clone();
+    sent["verified_by_readback"] = json!(true);
+    Ok(sent)
 }
 
 /// 임시저장(A14)이 발송 폼 위에 덧붙이는 전용 필드. 값은 **신규 저장** 기준이다
@@ -536,8 +525,7 @@ const DRAFT_FIELDS: &[(&str, &str)] = &[
     ("autoDraftType", "false"), // 에디터 자동저장(A13)이 아님
 ];
 
-/// 저장 직후 read-back이 훑는 임시보관함 통수. 목록은 최신순(`rfc822date desc`)이라 방금 저장한
-/// 건이 맨 앞에 오므로 넉넉하다 — 크게 잡을 이유가 없다(조회 비용만 는다).
+/// 초안 발송 전 실재 확인이 훑는 임시보관함 통수. 최신 20건만 확인한다.
 const DRAFT_READBACK_PAGE: i64 = 20;
 
 /// 메일 임시저장 — `mail014A01`(작성폼 초기화) → `mail014A14`(multipart) 2단계.
@@ -545,7 +533,7 @@ const DRAFT_READBACK_PAGE: i64 = 20;
 /// 폼은 발송(A04)과 동일하고 `DRAFT_FIELDS` 7개만 더 붙는다. 첨부 경로도 발송과 같다.
 /// 반환: `draft_muid`(= 응답 `resultData.autoMUID`, 후속 조회·삭제 키),
 /// `mail_key`(= A01의 `mailkey`, 재저장 때 `mailKey`로 되돌려줄 값),
-/// `verified_by_readback`(임시보관함 재조회로 그 muid를 실제로 찾았는지 — 프로젝트 규약 §7).
+/// `verified_by_readback`(저장 본문을 다시 열어 작성 본문과 대조했는지).
 /// `signature`가 true면 A01이 준 등록 서명을 본문 끝에 붙여 **저장**한다 — 초안 본문에 들어가므로
 /// `send_mail_from_draft`가 본문째로 승계한다(그쪽에서 다시 붙이지 않는다).
 pub async fn save_mail_draft(
@@ -554,10 +542,11 @@ pub async fn save_mail_draft(
     cc: &str,
     bcc: &str,
     subject: &str,
-    html: &str,
+    body: &str,
     attachments: &[String],
     signature: bool,
 ) -> Result<Value> {
+    let html = render_body(body)?;
     let init = compose_init(c).await?;
     let (uid_auth_list, big_file_cnt) = attachment_fields(c, attachments).await?;
     // 프론트는 제목이 비면 "(제목없음)"으로 채워 저장한다.
@@ -566,7 +555,7 @@ pub async fn save_mail_draft(
     } else {
         subject
     };
-    let (html, signature_attached) = with_signature(html, &init, signature);
+    let (html, signature_attached) = with_signature(&html, &init, signature);
     let cf = ComposeForm::new(&init, to, subject, &html, uid_auth_list, big_file_cnt)
         .with_carbon_copy(cc, bcc);
     let form = || {
@@ -585,23 +574,24 @@ pub async fn save_mail_draft(
     if draft_muid.is_empty() {
         bail!("메일 임시저장 실패(autoMUID 없음): {v}");
     }
-    // read-back — 성공 응답을 반영으로 단정하지 않는다(프로젝트 규약). 임시보관함을 재조회해
-    // **그 muid가 목록에 실제로 있는지** 본다.
-    // ⚠️ 통수(+1) 비교가 아니라 muid 대조인 이유: 저장 전후 사이에 메일이 들어오거나 다른 세션이
-    // 초안을 지우면 통수는 조용히 오탐이 난다. muid는 우리가 만든 그 한 건만 가리킨다.
-    // 조회 실패(권한·네트워크)는 "확인 못 함"이지 "저장 실패"가 아니므로 에러로 올리지 않는다.
-    // 그 경우 `verified_by_readback: false`로 보고한다 — **저장이 안 됐다는 뜻이 아니라
-    // 확인하지 못했다는 뜻**이고, 목록에 없어서 false인 경우와 응답에서 구분되지 않는다.
-    // 어느 쪽이든 사람이 임시보관함을 눈으로 확인해야 한다.
-    let verified = list_drafts(c, 1, DRAFT_READBACK_PAGE)
-        .await
-        .map(|list| has_muid(&list, &draft_muid))
-        .unwrap_or(false);
+    // 저장 성공과 본문 보존은 별개다. 발송 없이 초안을 다시 열어 비교한다.
+    // 실패하면 생성된 초안 ID를 알려 주고, 검증 기록을 남기지 않아 후속 발송도 차단한다.
+    let verify = async {
+        let stored = compose_init_draft(c, &draft_muid).await?;
+        let actual = stored.pointer("/mailInfo/mime/body/html").and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("저장 본문을 읽지 못했습니다"))?;
+        body::verify_saved(&html, actual)?;
+        body::remember(c, &draft_muid, actual)?;
+        Ok::<_, anyhow::Error>(())
+    }.await;
+    if let Err(error) = verify {
+        bail!("본문 검증 실패 — 발송하지 않았습니다. draft_muid={draft_muid} 초안은 저장되어 있습니다. 새로 저장하기 전에 해당 초안을 확인하세요: {error}");
+    }
 
     Ok(json!({
         "draft_muid": draft_muid,
         "mail_key": json_str(init.get("mailkey")),
-        "verified_by_readback": verified,
+        "verified_by_readback": true,
         "signature_attached": signature_attached
     }))
 }
@@ -711,6 +701,8 @@ pub async fn send_mail_from_draft(
     // ③ **보낼 것을 확정한다.** 판정은 전부 여기(순수 함수)에 있다 — 거부 사유도 여기서 나온다.
     let plan = plan_draft_send(found, &init, draft_muid, to_override)?;
 
+    body::require_verified(c, draft_muid, &plan.html)?;
+
     // ④ 첨부 승계. 보낼 내용이 다 확인된 뒤에 부른다 — 어차피 거부될 발송에 콜을 더 쓰지 않는다.
     let (uid_auth_list, big_file_cnt, fw_file) = if plan.files.is_empty() {
         (String::new(), "0".to_string(), String::new())
@@ -729,11 +721,16 @@ pub async fn send_mail_from_draft(
     .with_carbon_copy(&plan.cc, &plan.bcc)
     .with_draft(draft_muid, plan.mime_header.clone())
     .with_fw_file(fw_file);
-    let v = c.call_multipart("/mail/mail014A04", || cf.build(c)).await?;
+    let v = c.call_multipart("/mail/mail014A04", || cf.build(c)).await.map_err(|error| {
+        anyhow!("발송 API 응답을 확인하지 못했습니다(draft_muid={draft_muid}). 발송 여부 미확정 — 자동 재발송하지 말고 보낸메일함을 확인하세요: {error}")
+    })?;
     let rd = v.get("resultData").unwrap_or(&v);
     if !rd.get("result").and_then(|r| r.as_bool()).unwrap_or(false) {
         bail!("초안 발송 실패: {v}");
     }
+
+    // 발송 성공 후 기록 삭제 실패는 재발송 가능한 오류로 반환하지 않는다.
+    let verification_record_deleted = body::forget(c, draft_muid).is_ok();
 
     // ⑤ 원본 정리. 실패해도 발송은 이미 나갔으므로 에러로 올리지 않는다 — 대신 사실을 실어 보고한다.
     let mail_key = json_str(init.get("mailkey"));
@@ -747,6 +744,7 @@ pub async fn send_mail_from_draft(
 
     Ok(json!({
         "sent": true,
+        "verification_record_deleted": verification_record_deleted,
         "draft_muid": draft_muid,
         "to": plan.to,
         "cc": plan.cc,
@@ -1439,11 +1437,17 @@ fn count_remote_resources(html: &str) -> usize {
 /// 메일 삭제(휴지통 이동) — `mail002A05`. `uids`=콤마구분 muid 리스트(다건).
 /// ⚠️ 휴지통 이동 시 muid가 재부여되므로 이후 추적은 재조회 필요.
 pub async fn delete_mails(c: &GwClient, uids: &str) -> Result<Value> {
-    c.call(
+    let result = c.call(
         "/mail/mail002A05",
         &json!({ "uids": uids, "mailKey": "", "boxName": "" }),
     )
-    .await
+    .await?;
+    // 초안을 휴지통으로 옮긴 뒤 남는 검증 기록은 더 이상 사용할 수 없다.
+    // 기록이 없는 일반 메일도 이 경로를 쓰므로 삭제 실패는 메일 삭제 성공과 구분한다.
+    for muid in uids.split(',').map(str::trim) {
+        let _ = body::forget(c, muid);
+    }
+    Ok(result)
 }
 
 /// 발송·임시저장이 공유하는 폼의 **회귀 기준선**. 발송 폼을 `ComposeForm`으로 뽑아내면서

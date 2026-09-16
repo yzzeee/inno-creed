@@ -191,4 +191,58 @@ mod tests {
         drop(a);
         assert_eq!(Amaranth::all_tools().list_all().len(), EXPECTED_TOOLS.len());
     }
+
+    #[tokio::test]
+    async fn 잘못된_메일_본문은_세션_접근_전에_mcp_오류로_거부한다() {
+        use rmcp::ServiceExt;
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+        use serde_json::{json, Value};
+
+        let (server_io, client_io) = tokio::io::duplex(65536);
+        let server = tokio::spawn(async move {
+            Amaranth::new(GwClient::new(None)).serve(server_io).await.unwrap().waiting().await.unwrap();
+        });
+        let (read, mut write) = tokio::io::split(client_io);
+        let mut read = BufReader::new(read);
+        write.write_all(b"{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1\"}}}\n").await.unwrap();
+        let mut line = String::new();
+        read.read_line(&mut line).await.unwrap();
+        write.write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n").await.unwrap();
+        for tool in ["send_mail", "save_mail_draft"] {
+            for args in [
+                json!({"subject": "aassddff"}),
+                json!({"subject": "aassddff", "html": "<p>옛 인자</p>"}),
+                json!({"subject": "aassddff", "body": "   "}),
+                json!({"subject": "aassddff", "body": "<p>직접 HTML</p>"}),
+                json!({"subject": "aassddff", "body": "본문", "boddy": "오타"}),
+            ] {
+                let request = json!({"jsonrpc":"2.0", "id":1, "method":"tools/call", "params":{"name":tool,"arguments":args}});
+                write.write_all(format!("{request}\n").as_bytes()).await.unwrap();
+                let response = loop {
+                    line.clear();
+                    tokio::time::timeout(std::time::Duration::from_secs(3), read.read_line(&mut line)).await.unwrap().unwrap();
+                    let value: Value = serde_json::from_str(&line).unwrap();
+                    if value["id"] == 1 { break value; }
+                };
+                assert_eq!(response["result"]["isError"], true, "{tool}: {response}");
+                let text = response["result"]["content"][0]["text"].as_str().unwrap();
+                // 파싱 오류임을 확인한다. 세션/네트워크 오류로 우연히 실패한 경우는 통과하지 않는다.
+                assert!(text.contains("failed to deserialize parameters"), "{text}");
+            }
+        }
+        server.abort();
+    }
+
+    #[test]
+    fn 메일_스키마는_body를_필수로_노출하고_html을_제거한다() {
+        for tool in Amaranth::all_tools().list_all().iter().filter(|t| matches!(t.name.as_ref(), "send_mail" | "save_mail_draft")) {
+            let schema = serde_json::to_value(&tool.input_schema).unwrap();
+            assert_eq!(schema["additionalProperties"], false);
+            assert!(schema["required"].as_array().unwrap().contains(&serde_json::json!("body")));
+            assert!(schema["properties"].get("html").is_none());
+            let args = serde_json::json!({"subject": "aassddff", "body": "본문"});
+            assert_eq!(serde_json::from_value::<args::mail::SendMailArgs>(args.clone()).unwrap().body, "본문");
+            assert_eq!(serde_json::from_value::<args::mail::SaveMailDraftArgs>(args).unwrap().body, "본문");
+        }
+    }
 }

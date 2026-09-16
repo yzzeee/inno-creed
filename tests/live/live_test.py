@@ -1043,13 +1043,20 @@ def body(mcp: Mcp, fx: dict, marker: str):
     # 메일 — 수신자는 본인 고정(Mcp.call 이 to 지정을 차단한다)
     sent_at = datetime.now()
     subj = f"{marker} 라이브 점검 {sent_at.strftime('%Y%m%d-%H%M%S')}"
-    sm = run(mcp, "send_mail", lambda d: (len(json.dumps(d)) > 10, "본인 앞 발송"),
-             subject=subj, html="<p>inno-creed 라이브 점검. 자동 삭제됩니다.</p>")
+    sm = run(mcp, "send_mail", lambda d: (d.get("sent") is True and d.get("verified_by_readback") is True, "본문 검증 후 본인 앞 발송"),
+             subject=subj, body="inno-creed 라이브 점검. 자동 삭제됩니다.")
     if sm is not None:
         # sentAt 은 배달 대기를 얼마나 참을지 정하는 근거 — undo_mail 참조
         ml = track("mail",
                    {"subject": subj, "sentAt": sent_at.strftime("%Y-%m-%d %H:%M:%S")},
                    f"메일함에서 제목 '{subj}' 삭제")
+        state, received = _await_mail(mcp, subj)
+        if state == "OK" and received:
+            got = mcp.call("read_mail", muid=str(received["muid"]))
+            preserved = got[0] == "OK" and "inno-creed 라이브 점검. 자동 삭제됩니다." in got[1].get("body", "")
+            R.append(("PASS" if preserved else "FAIL", "send_mail(본문)", "수신 본문의 작성 텍스트 보존"))
+        else:
+            R.append(("FAIL", "send_mail(본문)", "수신 메일을 확인하지 못함"))
         ok, note = undo_mail(mcp, ml["ref"], marker)
         R.append(("PASS" if ok else "FAIL", "delete_mail", note))
         if ok:
@@ -1079,7 +1086,7 @@ def body(mcp: Mcp, fx: dict, marker: str):
                 f"read-back {'확인' if verified else '❌미확인'}")
 
     sd = run(mcp, "save_mail_draft", chk_draft,
-             subject=dsubj, html="<p>inno-creed 라이브 점검(임시저장). 자동 삭제됩니다.</p>")
+             subject=dsubj, body="inno-creed 라이브 점검(임시저장). 자동 삭제됩니다.")
     if sd and sd.get("draft_muid"):
         dl = track("mail_draft",
                    {"muid": sd["draft_muid"], "subject": dsubj, "beforeExists": base_drafts},
@@ -1139,7 +1146,7 @@ def draft_send_scenario(mcp: Mcp, marker: str):
     subj = f"{marker} 초안발송 점검 {sent_at.strftime('%Y%m%d-%H%M%S')}"
 
     sd = mcp.call("save_mail_draft", subject=subj,
-                  html="<p>inno-creed 라이브 점검(초안 발송). 자동 삭제됩니다.</p>")
+                  body="inno-creed 라이브 점검(초안 발송). 자동 삭제됩니다.")
     if sd[0] == "ERR" or not (sd[1] or {}).get("draft_muid"):
         skip("send_mail_from_draft", f"발송할 초안을 만들지 못함: {sd[1] if sd[0] == 'ERR' else 'draft_muid 없음'}")
         return
@@ -1256,7 +1263,7 @@ def draft_carbon_copy_scenario(mcp: Mcp, marker: str):
     subj = f"{marker} 참조승계 점검 {sent_at.strftime('%Y%m%d-%H%M%S')}"
 
     sd = mcp.call("save_mail_draft", subject=subj, cc=me, bcc=me,
-                  html="<p>inno-creed 라이브 점검(참조 승계). 자동 삭제됩니다.</p>")
+                  body="inno-creed 라이브 점검(참조 승계). 자동 삭제됩니다.")
     if sd[0] == "ERR" or not (sd[1] or {}).get("draft_muid"):
         skip("send_mail_from_draft(참조)", f"참조 걸린 초안을 만들지 못함: {sd[1] if sd[0] == 'ERR' else 'draft_muid 없음'}")
         return
@@ -1350,7 +1357,7 @@ def draft_attachment_scenario(mcp: Mcp, marker: str):
         subj = f"{marker} 첨부승계 점검 {sent_at.strftime('%Y%m%d-%H%M%S')}"
 
         sd = mcp.call("save_mail_draft", subject=subj,
-                      html="<p>inno-creed 라이브 점검(첨부 승계). 자동 삭제됩니다.</p>",
+                      body="inno-creed 라이브 점검(첨부 승계). 자동 삭제됩니다.",
                       attachments=paths)
         if sd[0] == "ERR" or not (sd[1] or {}).get("draft_muid"):
             R.append(("FAIL", "send_mail_from_draft(첨부2)",

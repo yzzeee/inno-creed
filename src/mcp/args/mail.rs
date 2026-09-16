@@ -8,6 +8,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
+#[serde(deny_unknown_fields)]
 pub struct SendMailArgs {
     /// 받는사람 (표시형 "이름 <email>" 또는 email). **여러 명이면 콤마로 잇는다** — 예:
     /// `"홍길동 <hong@innogrid.com>,kim@innogrid.com"`. 미지정 시 본인에게 발송.
@@ -22,9 +23,10 @@ pub struct SendMailArgs {
     pub bcc: Option<String>,
     /// 제목
     pub subject: String,
-    /// 본문 HTML(선택)
-    #[serde(default)]
-    pub html: String,
+    /// 본문(필수). 일반 텍스트 또는 Markdown. HTML 태그는 사용하지 않는다.
+    /// HTML 변환·서명 삽입·저장 본문 검증은 도구가 처리한다.
+    #[serde(deserialize_with = "deserialize_body")]
+    pub body: String,
     /// 첨부할 로컬 파일 경로 목록(선택, 절대경로). 비우면 첨부 없음.
     #[serde(default)]
     pub attachments: Vec<String>,
@@ -38,6 +40,7 @@ pub struct SendMailArgs {
 
 #[derive(Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
+#[serde(deny_unknown_fields)]
 pub struct SaveMailDraftArgs {
     /// 받는사람 (표시형 "이름 <email>" 또는 email). **여러 명이면 콤마로 잇는다** — 예:
     /// `"홍길동 <hong@innogrid.com>,kim@innogrid.com"`. 미지정 시 본인.
@@ -53,9 +56,10 @@ pub struct SaveMailDraftArgs {
     pub bcc: Option<String>,
     /// 제목. 비워두면 "(제목없음)"으로 저장된다.
     pub subject: String,
-    /// 본문 HTML(선택)
-    #[serde(default)]
-    pub html: String,
+    /// 본문(필수). 일반 텍스트 또는 Markdown. HTML 태그는 사용하지 않는다.
+    /// HTML 변환·서명 삽입·저장 본문 검증은 도구가 처리한다.
+    #[serde(deserialize_with = "deserialize_body")]
+    pub body: String,
     /// 첨부할 로컬 파일 경로 목록(선택, 절대경로). 비우면 첨부 없음.
     #[serde(default)]
     pub attachments: Vec<String>,
@@ -70,6 +74,7 @@ pub struct SaveMailDraftArgs {
 
 #[derive(Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
+#[serde(deny_unknown_fields)]
 pub struct SendMailFromDraftArgs {
     /// 발송할 임시보관 메일의 muid. save_mail_draft의 `draft_muid` 또는 list_mail_drafts 결과의 muid.
     #[serde(deserialize_with = "super::flex_string")]
@@ -122,4 +127,11 @@ pub struct DownloadMailAttachmentArgs {
     pub file_sn: String,
     /// 저장 경로(절대경로 권장). 예: /tmp/attach.png
     pub out_path: String,
+}
+
+// 파싱 단계에서 거부하므로 세션 확보·첨부 업로드·발송 모두 실행되지 않는다.
+fn deserialize_body<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    let body = String::deserialize(d)?;
+    crate::modules::mail::render_body(&body).map_err(serde::de::Error::custom)?;
+    Ok(body)
 }

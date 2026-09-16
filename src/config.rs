@@ -12,11 +12,23 @@
 //! (`person_group::write_groups`). 부분 갱신을 흉내내면 사람이 적어둔 다른 그룹이 날아간다.
 
 /// 설정 디렉토리. `XDG_CONFIG_HOME` 우선, 없으면 `$HOME/.config`.
-/// 둘 다 없으면 `None`(설정 없이 동작한다 — 번들 기본값으로 떨어진다).
+/// Windows GUI 프로세스처럼 HOME이 없으면 USERPROFILE을 사용한다.
 pub fn dir() -> Option<std::path::PathBuf> {
-    let base = std::env::var_os("XDG_CONFIG_HOME")
+    resolve_dir(
+        std::env::var_os("XDG_CONFIG_HOME"),
+        std::env::var_os("HOME"),
+        std::env::var_os("USERPROFILE"),
+    )
+}
+
+fn resolve_dir(
+    xdg: Option<std::ffi::OsString>,
+    home: Option<std::ffi::OsString>,
+    user_profile: Option<std::ffi::OsString>,
+) -> Option<std::path::PathBuf> {
+    let base = xdg
         .map(std::path::PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config")))?;
+        .or_else(|| home.or(user_profile).map(|h| std::path::PathBuf::from(h).join(".config")))?;
     Some(base.join("inno-creed"))
 }
 
@@ -29,8 +41,25 @@ pub fn file(name: &str) -> Option<std::path::PathBuf> {
 /// 이 디렉토리는 사용자가 미리 만들어 두지 않는 것이 보통이다.
 pub fn ensure_dir() -> std::io::Result<std::path::PathBuf> {
     let d = dir().ok_or_else(|| {
-        std::io::Error::other("설정 디렉토리를 정할 수 없다(HOME·XDG_CONFIG_HOME 둘 다 없음)")
+        std::io::Error::other("설정 디렉토리를 정할 수 없다(HOME·USERPROFILE·XDG_CONFIG_HOME 모두 없음)")
     })?;
     std::fs::create_dir_all(&d)?;
     Ok(d)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn windows_profile_fallback_and_existing_precedence() {
+        let xdg = Some("xdg".into());
+        let home = Some("home".into());
+        let profile = Some("profile".into());
+        assert_eq!(resolve_dir(xdg, home.clone(), profile.clone()), Some(PathBuf::from("xdg/inno-creed")));
+        assert_eq!(resolve_dir(None, home, profile.clone()), Some(PathBuf::from("home/.config/inno-creed")));
+        assert_eq!(resolve_dir(None, None, profile), Some(PathBuf::from("profile/.config/inno-creed")));
+        assert_eq!(resolve_dir(None, None, None), None);
+    }
 }

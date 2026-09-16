@@ -100,7 +100,7 @@ pub async fn run() -> i32 {
     // 도구 목록이 뜨는 것만 보고 인증까지 됐다고 오해하는 것이 실제 설치에서 나온 함정이라,
     // 여기서 실제로 한 번 왕복해 확인한다. (크레덴셜이 있을 때만 — 네트워크를 쓴다.)
     if !creds_missing {
-        println!("\n[실제 인증 확인] gw.innogrid.com에 1회 요청합니다");
+        println!("\n[실제 인증 확인] gw.innogrid.com에 요청을 보냅니다(1회, 401이면 재취득 후 1회 더)");
         match verify(d.creds).await {
             Ok(()) => println!("  ✅ 인증 성공 — 도구를 바로 쓸 수 있습니다."),
             Err(e) => {

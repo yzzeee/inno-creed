@@ -6,6 +6,7 @@ inno-creed의 기술 문서. 프로젝트 소개·도구 목록은 [루트 READM
 |---|---|
 | [INSTALL.md](INSTALL.md) | 설치 가이드 — GUI 인스톨러(비개발자 권장) · OS별 수동 설치 · MCP 등록 · Chrome/Edge 확장 프로그램 · 크레덴셜 문제 해결 |
 | [index.html](index.html) | 위 설치 가이드의 웹 랜딩페이지 — Claude 환경(CLI/Code/Cowork/웹)을 먼저 고르게 하는 탭 구성 |
+| [mac-first-run.html](mac-first-run.html) | macOS에서 인스톨러가 "열 수 없음"으로 차단될 때 허용하는 방법 — 차단 화면부터 시스템 설정 [그래도 열기]까지 캡처 6단계(`installer`·`inno-creed` 두 번) ([웹](https://zilhak.github.io/inno-creed/mac-first-run.html)) |
 | [extension-install.html](extension-install.html) | Chrome/Edge 확장 프로그램 설치 방법 — 다운로드부터 아마란스 로그인까지 실제 화면 캡처 12단계 ([웹](https://zilhak.github.io/inno-creed/extension-install.html)) |
 | [architecture.md](architecture.md) | 브라우저가 필요 없는 이유, 모듈 구조, 크레덴셜 취득(Chrome/Firefox 쿠키 복호화), authToken·세션 정보, `wehago-sign` 서명 규격, 응답 봉투, 안전 규약(read-back·소유권 가드) |
 | [api-reference.md](api-reference.md) | 모듈별 확정 API 스키마 — 자원(회의실)·일정·메일·게시판·전자결재·근태·조직도의 엔드포인트, 요청/응답 필드, 실측으로 확인한 함정 |

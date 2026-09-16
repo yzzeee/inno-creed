@@ -16,12 +16,16 @@ Claude Desktop 앱(채팅·Cowork·Code 탭)에서 쓸 거라면, 아래 1~6번�
 2. **압축을 통째로 풉니다.** 안에 `installer`(Windows는 `installer.exe`)와 `payload/` 폴더가 나란히 들어있는데, **이 둘을 같은 자리에 둔 채로** `installer`를 실행하세요 — `installer`만 다른 곳으로 옮기면 설치할 파일을 못 찾습니다.
 3. 실행이 막히면 — 미서명 배포판이라 OS마다 한 번씩 걸립니다.
    - **Windows**: SmartScreen("Windows가 PC를 보호했습니다") 경고 → **추가 정보 → 실행**.
-   - **macOS**: Gatekeeper가 "확인되지 않은 개발자"라며 막습니다. 터미널에서 압축 푼 폴더에 대고 한 줄:
+   - **macOS**: Gatekeeper가 "'installer'을(를) 열지 않음"이라며 **아예 막습니다**. 화면 캡처로 따라가는
+     [macOS 첫 실행 허용하기](mac-first-run.html)([웹](https://zilhak.github.io/inno-creed/mac-first-run.html))를 보세요 —
+     한 번 실행을 시도해 경고를 띄운 뒤, **시스템 설정 → 개인정보 보호 및 보안 → [그래도 열기]**입니다.
+     설치 도중 본체(`inno-creed`)에 대해 **같은 경고가 한 번 더** 뜨며, 그때도 같은 절차를 거쳐야 합니다.
+     터미널을 쓸 수 있다면 압축 푼 폴더에 대고 한 줄로도 됩니다:
      ```sh
      xattr -dr com.apple.quarantine .        # 압축 푼 폴더 안에서
      ./installer
      ```
-     (Finder에서 `installer`를 **우클릭 → 열기**로도 됩니다.)
+     (최신 macOS에서는 예전의 **우클릭 → 열기** 우회가 더 이상 통하지 않습니다.)
    - **Linux**: 압축 프로그램이 실행 권한을 떨어뜨렸다면 `chmod +x installer payload/inno-creed`.
 4. 화면 안내를 따라갑니다: 환영 → Claude Desktop 설정 파일 자동 감지 → 설치 위치 확인 → (Claude Desktop이 켜져 있으면 종료 요청) → 설치 → 확장 프로그램 연결 안내 → 완료.
 5. 완료 화면에 `doctor` 인증 확인 결과가 함께 뜹니다. Claude Desktop을 (다시) 켜면 채팅·Cowork·Code 탭에서 바로 도구를 쓸 수 있습니다.

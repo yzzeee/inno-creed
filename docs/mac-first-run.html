@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>inno-creed — macOS 인스톨러 첫 실행 허용하기</title>
+<meta name="description" content="macOS에서 inno-creed 인스톨러가 '열 수 없음'으로 차단될 때, 시스템 설정에서 '그래도 열기'로 허용하는 방법을 화면 그대로 안내합니다.">
+<style>
+  :root{
+    --bg:#faf9f7; --bg-alt:#ffffff; --ink:#1f1b16; --ink-soft:#5b5347;
+    --line:#e7e1d6; --accent:#b5540f; --accent-ink:#ffffff;
+    --ok-bg:#eaf5ea; --ok-ink:#1f6b2b; --ok-line:#bfe0c3;
+    --warn-bg:#fff6e0; --warn-ink:#8a5a00; --warn-line:#f0d98b;
+    --no-bg:#fdeceb; --no-ink:#a33327; --no-line:#f3c7c1;
+    --code-bg:#2b2620; --code-ink:#f2ead9;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#17140f; --bg-alt:#1f1b15; --ink:#f1ece1; --ink-soft:#c9bfa9;
+      --line:#3a3327; --accent:#e08a3e; --accent-ink:#1a1208;
+      --ok-bg:#173821; --ok-ink:#8fdc9c; --ok-line:#2a5c37;
+      --warn-bg:#3a2e0c; --warn-ink:#f0c86a; --warn-line:#5c4a17;
+      --no-bg:#3a1a16; --no-ink:#f0968a; --no-line:#5c2a23;
+      --code-bg:#0f0d09; --code-ink:#f2ead9;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif;
+    line-height:1.6;
+  }
+  .wrap{max-width:820px; margin:0 auto; padding:0 20px;}
+  a{color:var(--accent);}
+
+  header.hero{padding:48px 0 34px; border-bottom:1px solid var(--line); text-align:center;}
+  header.hero .kicker{color:var(--ink-soft); font-size:.9rem; letter-spacing:.04em; font-weight:700;}
+  header.hero h1{font-size:1.9rem; margin:8px 0 10px;}
+  header.hero p{color:var(--ink-soft); margin:0 auto; max-width:640px;}
+  .cta-row{display:flex; gap:10px; justify-content:center; margin-top:22px; flex-wrap:wrap;}
+  .btn{
+    display:inline-block; padding:10px 20px; border-radius:8px; text-decoration:none;
+    font-weight:600; font-size:.95rem; border:1px solid var(--line);
+  }
+  .btn.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+  .btn.ghost{color:var(--ink); background:var(--bg-alt);}
+
+  section{padding:40px 0 10px;}
+  h2{font-size:1.3rem; margin:0 0 6px;}
+  .lead{color:var(--ink-soft); margin:0 0 24px;}
+
+  .prep{
+    background:var(--bg-alt); border:1px solid var(--line); border-radius:12px;
+    padding:20px 22px; margin-bottom:10px;
+  }
+  .prep h3{margin:0 0 10px; font-size:1.02rem;}
+  .prep ul{margin:0; padding-left:1.15em;}
+  .prep li{margin-bottom:8px; font-size:.94rem;}
+
+  ol.steps{list-style:none; margin:0; padding:0;}
+  ol.steps > li{
+    position:relative; padding:0 0 0 54px; margin:0 0 30px;
+  }
+  ol.steps > li::before{
+    counter-increment:step; content:counter(step);
+    position:absolute; left:0; top:0;
+    width:36px; height:36px; border-radius:50%;
+    background:var(--accent); color:var(--accent-ink);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:1rem;
+  }
+  ol.steps{counter-reset:step;}
+  ol.steps > li::after{
+    content:""; position:absolute; left:17px; top:44px; bottom:-22px;
+    width:2px; background:var(--line);
+  }
+  ol.steps > li:last-child::after{display:none;}
+  ol.steps h3{margin:4px 0 8px; font-size:1.1rem;}
+  ol.steps p{margin:0 0 10px; font-size:.95rem;}
+  ol.steps p:last-child{margin-bottom:0;}
+
+  figure{margin:14px 0 0;}
+  figure img{
+    max-width:100%; height:auto; display:block;
+    border:1px solid var(--line); border-radius:10px;
+    background:var(--bg-alt);
+  }
+  figure img.narrow{max-width:420px;}
+  figure img.mid{max-width:620px;}
+  figcaption{margin-top:7px; font-size:.84rem; color:var(--ink-soft);}
+
+  .note, .warn, .ok{
+    margin:14px 0 0; padding:13px 16px; border-radius:10px; font-size:.91rem; border:1px solid;
+  }
+  .note{background:var(--bg-alt); border-color:var(--line); color:var(--ink);}
+  .warn{background:var(--warn-bg); border-color:var(--warn-line); color:var(--warn-ink);}
+  .ok{background:var(--ok-bg); border-color:var(--ok-line); color:var(--ok-ink);}
+  .warn b, .ok b, .note b{color:inherit;}
+  .note p, .warn p, .ok p{margin:0 0 8px; font-size:inherit;}
+  .note p:last-child, .warn p:last-child, .ok p:last-child{margin-bottom:0;}
+
+  code, pre{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; font-size:.87rem;}
+  code{background:var(--code-bg); color:var(--code-ink); padding:2px 6px; border-radius:5px;}
+  pre{background:var(--code-bg); color:var(--code-ink); padding:13px 16px; border-radius:10px; overflow-x:auto;}
+  pre code{background:none; padding:0;}
+
+  table{width:100%; border-collapse:collapse; font-size:.9rem; margin-top:10px;}
+  th, td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top;}
+  th{color:var(--ink-soft); font-weight:600;}
+
+  details.faq{
+    background:var(--bg-alt); border:1px solid var(--line); border-radius:10px;
+    padding:14px 18px; margin-bottom:10px;
+  }
+  details.faq summary{cursor:pointer; font-weight:700; font-size:.95rem;}
+  details.faq p{margin:10px 0 0; font-size:.92rem;}
+
+  footer{padding:36px 0 60px; text-align:center; color:var(--ink-soft); font-size:.88rem; border-top:1px solid var(--line); margin-top:40px;}
+  footer a{color:var(--ink-soft);}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">inno-creed · macOS</div>
+    <h1>인스톨러가 "열 수 없음"으로 막힐 때</h1>
+    <p>macOS에서 내려받은 <code>installer</code>를 더블클릭하면
+    <b>"Apple은 악성 코드가 없음을 확인할 수 없습니다"</b>라며 열리지 않습니다.
+    정상이며, 아래 1~5단계로 허용해 주면 됩니다.
+    <b>설치 도중 <code>inno-creed</code>에 대해 같은 경고가 한 번 더</b> 뜨는데, 그때도 똑같이 하면 됩니다. 화면 그대로 따라가세요.</p>
+    <div class="cta-row">
+      <a class="btn primary" href="https://github.com/zilhak/inno-creed/releases/latest">릴리즈 페이지 열기</a>
+      <a class="btn ghost" href="https://github.com/zilhak/inno-creed/blob/main/docs/INSTALL.md">전체 설치 문서</a>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="prep">
+      <h3>시작하기 전에</h3>
+      <ul>
+        <li><b>왜 막히나요.</b> Apple에 유료로 등록한 개발자가 서명·공증한 프로그램이 아니면 macOS가 첫 실행을 일단 차단합니다(Gatekeeper).
+            inno-creed는 사내용으로 공개 배포하는 도구라 그 서명이 없습니다 — <b>프로그램에 문제가 있다는 뜻이 아니라, 누가 만들었는지를 Apple이 보증해 주지 않는다는 뜻</b>입니다.
+            소스와 빌드 과정은 저장소에 전부 공개돼 있습니다.</li>
+        <li><b>설치 한 번에 이 과정을 두 번 거칩니다.</b> 먼저 설치 프로그램(<code>installer</code>)에 대해,
+            그다음 설치 도중 본체(<code>inno-creed</code>)에 대해 같은 경고가 뜹니다 — 대상 이름만 다르고 절차는 같습니다(6단계).
+            한 번 허용한 파일은 다음부터 그냥 열리지만, <b>새 버전을 다시 내려받으면 새 파일</b>이라 그때 또 한 번씩 필요합니다.</li>
+        <li><b>압축을 푼 폴더 통째로 둔 채</b> 진행하세요. <code>installer</code> 옆에 <code>payload</code> 폴더가 나란히 있어야 설치가 됩니다.
+            <code>installer</code> 파일만 따로 다른 곳으로 옮기면 실행돼도 "설치할 파일을 찾을 수 없다"에서 멈춥니다.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>허용 단계</h2>
+    <p class="lead">1~2분이면 끝납니다.</p>
+
+    <ol class="steps">
+
+      <li>
+        <h3>먼저 <code>installer</code>를 <b>한 번 더블클릭</b>합니다 — 막히는 게 정상입니다</h3>
+        <p>압축을 푼 폴더 안의 <code>installer</code>를 그냥 더블클릭하세요.
+        아래 같은 경고가 뜨면서 열리지 않습니다. 여기서 <b>[완료]</b>를 누릅니다.</p>
+        <figure>
+          <img src="assets/mac-first-run/01-blocked.png" alt="'installer'을(를) 열지 않음 경고 대화상자" class="narrow">
+          <figcaption>차단 경고. <b>[완료]</b>를 누릅니다.</figcaption>
+        </figure>
+        <div class="warn">
+          <p>🚨 <b>[휴지통으로 이동]을 누르지 마세요.</b> 파일이 지워져 처음부터 다시 받아야 합니다.
+          파란색으로 강조돼 있어 무심코 누르기 쉬우니 주의하세요.</p>
+        </div>
+        <div class="note">
+          <p>이 <b>"막히는 시도"를 반드시 한 번 해야 합니다.</b> macOS는 방금 차단한 항목에 대해서만
+          다음 단계의 <b>[그래도 열기]</b> 버튼을 보여줍니다. 시도 없이 설정부터 열면 그 버튼이 없습니다.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>화면 왼쪽 위 <b></b> 메뉴 → <b>시스템 설정</b></h3>
+        <p>지금 어떤 앱을 쓰고 있든 화면 맨 왼쪽 위의 사과 모양을 누르면 같은 메뉴가 나옵니다.</p>
+        <figure>
+          <img src="assets/mac-first-run/02-apple-menu.png" alt="애플 메뉴에서 시스템 설정 선택" class="narrow">
+          <figcaption> 메뉴 → <b>시스템 설정…</b></figcaption>
+        </figure>
+      </li>
+
+      <li>
+        <h3>왼쪽 목록에서 <b>개인정보 보호 및 보안</b>을 누릅니다</h3>
+        <p>목록이 길어 한참 내려가야 보입니다. 왼쪽 위 검색창에 <code>보안</code>을 입력해도 바로 찾을 수 있습니다.</p>
+        <figure>
+          <img src="assets/mac-first-run/03-privacy-security.png" alt="시스템 설정의 개인정보 보호 및 보안 화면" class="mid">
+          <figcaption><b>개인정보 보호 및 보안</b> 화면. 지금은 위쪽 "개인정보 보호" 부분이 보입니다.</figcaption>
+        </figure>
+      </li>
+
+      <li>
+        <h3>오른쪽을 <b>맨 아래까지 스크롤</b>해 <b>[그래도 열기]</b>를 누릅니다</h3>
+        <p>"개인정보 보호" 항목들을 지나 <b>보안</b> 섹션까지 내려가면
+        <b>"Mac을 보호하기 위해 'installer'을(를) 차단했습니다"</b>라는 줄과 오른쪽에 <b>[그래도 열기]</b> 버튼이 있습니다.</p>
+        <figure>
+          <img src="assets/mac-first-run/04-open-anyway.png" alt="보안 섹션의 'installer을 차단했습니다' 안내와 그래도 열기 버튼" class="mid">
+          <figcaption>이 줄이 <b>1단계에서 막혔기 때문에</b> 생긴 것입니다. 오른쪽 <b>[그래도 열기]</b>.</figcaption>
+        </figure>
+        <div class="note">
+          <p>Touch ID나 Mac 로그인 암호를 물어보면 입력해 주세요. 관리자 확인 절차입니다.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>다시 뜨는 창에서 <b>[그래도 열기]</b>를 한 번 더 누릅니다</h3>
+        <p>같은 모양의 경고가 한 번 더 뜨는데, 이번에는 선택지에 <b>[그래도 열기]</b>가 있습니다. 그것을 누르면 인스톨러가 실행됩니다.</p>
+        <figure>
+          <img src="assets/mac-first-run/05-confirm-open.png" alt="'installer'을(를) 열겠습니까? 확인 대화상자의 그래도 열기 버튼" class="narrow">
+          <figcaption>가운데 <b>[그래도 열기]</b> — 여기서도 맨 위 [휴지통으로 이동]을 누르지 않도록 주의하세요.</figcaption>
+        </figure>
+        <div class="ok">
+          <p>✅ 인스톨러 창이 뜨면 성공입니다. 이제 화면 안내를 따라 <b>다음</b>을 눌러 진행하세요.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>설치 도중 <code>inno-creed</code>에 대해 <b>한 번 더</b> 같은 경고가 뜹니다</h3>
+        <p>인스톨러가 방금 설치한 본체를 실제로 실행해 보기 때문입니다(버전 확인·브라우저 연결 등록·설치 점검).
+        그래서 이번에는 대상 이름이 <b><code>inno-creed</code></b>로 바뀌어 같은 경고가 나옵니다.</p>
+        <figure>
+          <img src="assets/mac-first-run/06-inno-creed-blocked.png" alt="'inno-creed'을(를) 열지 않음 경고 대화상자" class="narrow">
+          <figcaption>이번엔 <code>inno-creed</code>. <b>[완료]</b>를 누르고 <b>2~5단계를 그대로 한 번 더</b> 하면 됩니다.</figcaption>
+        </figure>
+        <div class="warn">
+          <p>🚨 여기서도 <b>[휴지통으로 이동]을 누르지 마세요.</b> 방금 설치한 본체가 지워져 설치를 처음부터 다시 해야 합니다.</p>
+        </div>
+        <div class="note">
+          <p>시스템 설정의 보안 섹션에서 이번에 누를 줄은 <b>"…'inno-creed'을(를) 차단했습니다"</b> 입니다.
+          이름이 <code>installer</code>로 보인다면 그건 아까 처리한 예전 줄이니, <code>inno-creed</code>라고 적힌 쪽을 누르세요.</p>
+          <p><b>이 허용을 건너뛰면 Claude에서 도구가 동작하지 않습니다.</b> Claude Desktop이 바로 이 <code>inno-creed</code>를
+          실행해서 아마란스와 통신하기 때문입니다.</p>
+        </div>
+        <div class="ok">
+          <p>✅ 여기까지 하면 설치가 끝납니다. 이어서 나오는 <b>확장 프로그램 연결</b>은
+          <a href="extension-install.html">Chrome 확장 프로그램 설치 방법</a>을 그대로 따라가세요 —
+          macOS에서도 이 확장이 있어야 아마란스 로그인이 Claude로 전달됩니다.</p>
+        </div>
+      </li>
+
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>자주 막히는 곳</h2>
+
+    <details class="faq">
+      <summary>보안 섹션에 [그래도 열기] 버튼이 없습니다</summary>
+      <p>거의 대부분 <b>1단계를 건너뛴 경우</b>입니다. macOS는 <b>방금 차단한 항목</b>에 대해서만 이 버튼을 보여줍니다.
+      <code>installer</code>를 다시 한 번 더블클릭해 경고를 띄운 뒤(=[완료]), 곧바로 시스템 설정으로 돌아오면 줄이 생깁니다.</p>
+      <p>버튼에 적힌 이름이 지금 열려는 것(<code>installer</code> 또는 <code>inno-creed</code>)과 다르면
+      다른 프로그램의 차단 기록입니다. 그건 누르지 마세요.</p>
+    </details>
+
+    <details class="faq">
+      <summary>실수로 [휴지통으로 이동]을 눌렀습니다</summary>
+      <p>파일이 휴지통으로 들어갔을 뿐이라 되돌릴 수 있습니다. 휴지통을 열어 해당 파일에서 오른쪽 클릭 → <b>[되돌려 놓기]</b>를 누르세요.
+      이미 휴지통을 비웠다면, <code>installer</code>였다면 zip을 다시 내려받아 1단계부터,
+      <code>inno-creed</code>였다면 인스톨러를 다시 실행해 설치부터 하면 됩니다.</p>
+    </details>
+
+    <details class="faq">
+      <summary>인스톨러는 열렸는데 "설치할 inno-creed 실행 파일을 찾을 수 없습니다"라고 나옵니다</summary>
+      <p><code>installer</code>를 <b>혼자만</b> 다른 자리로 옮겼을 때 나옵니다.
+      인스톨러는 자기 <b>바로 옆의 <code>payload</code> 폴더</b>에서 설치할 파일을 찾습니다.
+      압축을 푼 폴더를 통째로 둔 채, 그 안의 <code>installer</code>를 실행하세요.</p>
+    </details>
+
+    <details class="faq">
+      <summary>창이 안 뜨고 아무 일도 일어나지 않습니다 (그래픽 오류)</summary>
+      <p>같은 폴더에 있는 <code>installer-cli</code>를 대신 쓸 수 있습니다. 터미널에서 실행하면 같은 설치를 글자 안내로 진행합니다.
+      <code>installer-cli</code>도 처음에는 똑같이 차단되므로 같은 1~5단계를 한 번 거쳐야 합니다.</p>
+    </details>
+
+    <details class="faq">
+      <summary>터미널을 쓸 줄 압니다 — 더 빠른 방법은 없나요</summary>
+      <p>압축을 푼 폴더에 아래 한 줄이면 차단 표시가 지워져 그냥 실행됩니다(시스템 설정을 열 필요 없음).</p>
+      <pre><code>xattr -dr com.apple.quarantine ~/Downloads/inno-creed-installer-macos-arm64</code></pre>
+      <p>터미널에서 <code>./installer</code>로 바로 실행해도 됩니다 — Gatekeeper의 이 차단은 Finder에서 열 때 적용됩니다.</p>
+    </details>
+
+    <details class="faq">
+      <summary>매번 이래야 하나요? 경고 없는 버전은 없나요</summary>
+      <p>이미 허용한 파일은 다음부터 그냥 열립니다. <b>새 버전을 내려받으면</b> 새 파일이라 한 번 더 필요합니다.</p>
+      <p>경고 자체를 없애려면 Apple 개발자 프로그램(유료) 서명과 공증이 필요합니다. 지금 배포판에는 적용돼 있지 않습니다.</p>
+    </details>
+
+    <details class="faq">
+      <summary>Windows·Linux에서도 이런 게 있나요</summary>
+      <p>Windows는 대신 <b>SmartScreen</b> 경고가 뜹니다 — <b>추가 정보 → 실행</b>을 누르면 됩니다.
+      Linux는 별도 차단이 없고, 실행 권한만 있으면 바로 실행됩니다.</p>
+    </details>
+
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a href="index.html">설치 가이드 홈</a> ·
+    <a href="extension-install.html">확장 프로그램 설치 방법</a> ·
+    <a href="https://github.com/zilhak/inno-creed">GitHub 저장소</a> ·
+    <a href="https://github.com/zilhak/inno-creed/blob/main/docs/INSTALL.md">전체 설치 문서</a>
+  </div>
+</footer>
+
+</body>
+</html>

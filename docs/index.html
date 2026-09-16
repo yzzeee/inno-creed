@@ -230,7 +230,8 @@
       <pre><code>https://github.com/zilhak/inno-creed
 이 MCP 설치해줘</code></pre>
       <p style="margin:10px 0;"><img src="assets/step-cli-ask.png" alt="Claude Code 터미널에 저장소 주소와 '이 MCP 설치해줘'를 입력한 화면" style="max-width:420px; border-radius:8px; border:1px solid var(--line);"></p>
-      <p>이렇게 입력하면 Claude가 알아서 내려받고 등록까지 해줍니다. 이어지는 안내를 그대로 따라가면 되고, 로그인 인증 연결(확장 프로그램 — 모든 OS에서 필요합니다)까지 안내해 줍니다.</p>
+      <p>이렇게 입력하면 Claude가 알아서 내려받고 등록까지 해줍니다. 이어지는 안내를 그대로 따라가면 됩니다.</p>
+      <div class="note"><b>등록만으로는 끝이 아닙니다 — 확장 프로그램까지 올려야 로그인이 잡힙니다(모든 OS).</b> Claude가 안내해 주지만, 브라우저를 직접 조작하는 단계라 사람이 해야 합니다: <a href="extension-install.html">확장 프로그램 설치 방법</a>(그림 12단계). 다 됐는지는 <code>inno-creed doctor</code>의 <b>[실제 인증 확인] ✅</b>로 판단하세요 — 도구 목록이 보이는 것과 인증이 된 것은 별개입니다.</div>
 
       <details class="steps-common">
         <summary>Claude에게 안 부탁하고 직접 설치하기</summary>
@@ -249,6 +250,8 @@
               <li><a href="https://github.com/zilhak/inno-creed/releases/latest"><code>inno-creed-extension.zip</code></a>을 받아 압축을 풀어둡니다(지우지 말고 그대로 둡니다 — 브라우저가 그 폴더를 계속 읽습니다).</li>
               <li><code>chrome://extensions</code>(또는 <code>edge://extensions</code>)를 열고 <b>개발자 모드</b>를 켭니다 — Chrome은 화면 우측 상단, Edge는 좌측 하단에 있습니다.</li>
               <li>"압축해제된 확장 프로그램을 로드합니다"(Edge는 "압축 풀린 파일 로드")로 방금 그 폴더를 선택합니다. 그 다음 <code>gw.innogrid.com</code>에 로그인하면 연결됩니다.</li>
+              <li>⚠️ <b>macOS에서는 Chrome을 쓰세요</b> — 맥은 Edge를 지원하지 않아, Edge에 올리면 에러 없이 조용히 연결되지 않습니다.</li>
+              <li>⚠️ <b>2·3번(등록·재시작)을 먼저 끝낸 뒤에</b> 확장을 올리세요. 브라우저 연결 등록은 inno-creed가 한 번 실행될 때 자동으로 만들어지므로, 순서를 바꾸면 첫 연결이 빈손으로 끝납니다(그 경우 아마란스에서 다시 로그인하면 붙습니다).</li>
               <li>⚠️ Edge를 새로 켤 때 "개발자 모드에서 확장 사용 해제" 경고가 뜨면 <b>[확장 사용 해제]는 누르지 말고 [나중에]</b>를 누르세요.</li>
             </ol>
           </li>
@@ -262,7 +265,8 @@
       <pre><code>https://github.com/zilhak/inno-creed
 이 MCP 설치해줘</code></pre>
       <p style="margin:10px 0;"><img src="assets/step-code-ask.png" alt="Claude Desktop의 Code 탭 채팅창에 저장소 주소와 '이 MCP 설치해줘'를 입력한 화면" style="max-width:420px; border-radius:8px; border:1px solid var(--line);"></p>
-      <p>Claude가 알아서 내려받고 등록까지 해줍니다. 이어지는 안내를 그대로 따라가면 되고, 로그인 인증 연결(확장 프로그램 — 모든 OS에서 필요합니다)까지 안내해 줍니다. 끝나면 Desktop 앱을 <b>완전히 종료했다가 다시 열어야</b> 도구가 보입니다.</p>
+      <p>Claude가 알아서 내려받고 등록까지 해줍니다. 이어지는 안내를 그대로 따라가면 됩니다. 끝나면 Desktop 앱을 <b>완전히 종료했다가 다시 열어야</b> 도구가 보입니다.</p>
+      <div class="note"><b>등록만으로는 끝이 아닙니다 — 확장 프로그램까지 올려야 로그인이 잡힙니다(모든 OS).</b> 브라우저를 직접 조작하는 단계라 사람이 해야 합니다: <a href="extension-install.html">확장 프로그램 설치 방법</a>(그림 12단계). 다 됐는지는 <code>inno-creed doctor</code>의 <b>[실제 인증 확인] ✅</b>로 판단하세요.</div>
 
       <details class="steps-common">
         <summary>Claude에게 안 부탁하고 다른 방법으로 설치하기</summary>
@@ -288,6 +292,7 @@
         <b>macOS는 "열 수 없음"으로 아예 막히므로 <a href="mac-first-run.html">macOS 첫 실행 허용하기</a>를 따라가세요</b>(설치 도중 한 번 더 뜹니다).</li>
         <li>화면 안내를 따라가면 설치와 확장 프로그램 연결까지 끝납니다. 확장 프로그램을 브라우저에 올리는 단계는 <a href="extension-install.html">그림으로 보는 설치 방법</a>을 따라가면 됩니다.</li>
         <li>Desktop 앱을 <b>완전히 종료(트레이 포함)했다가 다시 실행</b>하면 Cowork·Code·Chat 모든 탭에서 바로 쓸 수 있습니다.</li>
+        <li>인스톨러 마지막 화면의 <b>인증 확인 결과가 ✅</b>인지 보세요. ❌라면 확장 프로그램을 아직 브라우저에 올리지 않았거나 아마란스에 로그인되어 있지 않은 것입니다.</li>
       </ol>
       <div class="note" style="margin-top:16px;">
         <b>웹브라우저나 휴대폰 앱으로 켠 Cowork 세션에서도 됩니다</b> — 단, <b>컴퓨터에 설치된 Desktop 앱이 실행 중이어야</b> 합니다. Desktop 앱이 다리 역할을 해서 로컬 도구를 원격 세션으로 연결해주기 때문입니다(도구 이름 앞에 <code>remote-devices</code>가 붙어서 나타납니다). Desktop 앱 자체를 꺼두면 어디서 접속하든 안 됩니다.

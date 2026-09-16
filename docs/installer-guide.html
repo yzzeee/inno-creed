@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>inno-creed — 설치 프로그램으로 설치하기</title>
+<meta name="description" content="inno-creed 설치 프로그램(installer)을 내려받아 압축을 풀고 실행하기까지, 실제 화면 그대로 따라가는 안내.">
+<style>
+  :root{
+    --bg:#faf9f7; --bg-alt:#ffffff; --ink:#1f1b16; --ink-soft:#5b5347;
+    --line:#e7e1d6; --accent:#b5540f; --accent-ink:#ffffff;
+    --ok-bg:#eaf5ea; --ok-ink:#1f6b2b; --ok-line:#bfe0c3;
+    --warn-bg:#fff6e0; --warn-ink:#8a5a00; --warn-line:#f0d98b;
+    --no-bg:#fdeceb; --no-ink:#a33327; --no-line:#f3c7c1;
+    --code-bg:#2b2620; --code-ink:#f2ead9;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#17140f; --bg-alt:#1f1b15; --ink:#f1ece1; --ink-soft:#c9bfa9;
+      --line:#3a3327; --accent:#e08a3e; --accent-ink:#1a1208;
+      --ok-bg:#173821; --ok-ink:#8fdc9c; --ok-line:#2a5c37;
+      --warn-bg:#3a2e0c; --warn-ink:#f0c86a; --warn-line:#5c4a17;
+      --no-bg:#3a1a16; --no-ink:#f0968a; --no-line:#5c2a23;
+      --code-bg:#0f0d09; --code-ink:#f2ead9;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif;
+    line-height:1.6;
+  }
+  .wrap{max-width:820px; margin:0 auto; padding:0 20px;}
+  a{color:var(--accent);}
+
+  header.hero{padding:48px 0 34px; border-bottom:1px solid var(--line); text-align:center;}
+  header.hero .kicker{color:var(--ink-soft); font-size:.9rem; letter-spacing:.04em; font-weight:700;}
+  header.hero h1{font-size:1.9rem; margin:8px 0 10px;}
+  header.hero p{color:var(--ink-soft); margin:0 auto; max-width:640px;}
+  .cta-row{display:flex; gap:10px; justify-content:center; margin-top:22px; flex-wrap:wrap;}
+  .btn{
+    display:inline-block; padding:10px 20px; border-radius:8px; text-decoration:none;
+    font-weight:600; font-size:.95rem; border:1px solid var(--line);
+  }
+  .btn.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+  .btn.ghost{color:var(--ink); background:var(--bg-alt);}
+
+  section{padding:40px 0 10px;}
+  h2{font-size:1.3rem; margin:0 0 6px;}
+  .lead{color:var(--ink-soft); margin:0 0 24px;}
+
+  .prep{
+    background:var(--bg-alt); border:1px solid var(--line); border-radius:12px;
+    padding:20px 22px; margin-bottom:10px;
+  }
+  .prep h3{margin:0 0 10px; font-size:1.02rem;}
+  .prep ul{margin:0; padding-left:1.15em;}
+  .prep li{margin-bottom:8px; font-size:.94rem;}
+
+  ol.steps{list-style:none; margin:0; padding:0;}
+  ol.steps > li{
+    position:relative; padding:0 0 0 54px; margin:0 0 30px;
+  }
+  ol.steps > li::before{
+    counter-increment:step; content:counter(step);
+    position:absolute; left:0; top:0;
+    width:36px; height:36px; border-radius:50%;
+    background:var(--accent); color:var(--accent-ink);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:1rem;
+  }
+  ol.steps{counter-reset:step;}
+  ol.steps > li::after{
+    content:""; position:absolute; left:17px; top:44px; bottom:-22px;
+    width:2px; background:var(--line);
+  }
+  ol.steps > li:last-child::after{display:none;}
+  ol.steps h3{margin:4px 0 8px; font-size:1.1rem;}
+  ol.steps p{margin:0 0 10px; font-size:.95rem;}
+  ol.steps p:last-child{margin-bottom:0;}
+
+  figure{margin:14px 0 0;}
+  figure img{
+    max-width:100%; height:auto; display:block;
+    border:1px solid var(--line); border-radius:10px;
+    background:var(--bg-alt);
+  }
+  figure img.narrow{max-width:420px;}
+  figure img.mid{max-width:620px;}
+  figcaption{margin-top:7px; font-size:.84rem; color:var(--ink-soft);}
+
+  .note, .warn, .ok{
+    margin:14px 0 0; padding:13px 16px; border-radius:10px; font-size:.91rem; border:1px solid;
+  }
+  .note{background:var(--bg-alt); border-color:var(--line); color:var(--ink);}
+  .warn{background:var(--warn-bg); border-color:var(--warn-line); color:var(--warn-ink);}
+  .ok{background:var(--ok-bg); border-color:var(--ok-line); color:var(--ok-ink);}
+  .warn b, .ok b, .note b{color:inherit;}
+  .note p, .warn p, .ok p{margin:0 0 8px; font-size:inherit;}
+  .note p:last-child, .warn p:last-child, .ok p:last-child{margin-bottom:0;}
+
+  code, pre{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace; font-size:.87rem;}
+  code{background:var(--code-bg); color:var(--code-ink); padding:2px 6px; border-radius:5px;}
+  pre{background:var(--code-bg); color:var(--code-ink); padding:13px 16px; border-radius:10px; overflow-x:auto;}
+  pre code{background:none; padding:0;}
+
+  table{width:100%; border-collapse:collapse; font-size:.9rem; margin-top:10px;}
+  th, td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top;}
+  th{color:var(--ink-soft); font-weight:600;}
+
+  details.faq{
+    background:var(--bg-alt); border:1px solid var(--line); border-radius:10px;
+    padding:14px 18px; margin-bottom:10px;
+  }
+  details.faq summary{cursor:pointer; font-weight:700; font-size:.95rem;}
+  details.faq p{margin:10px 0 0; font-size:.92rem;}
+
+  footer{padding:36px 0 60px; text-align:center; color:var(--ink-soft); font-size:.88rem; border-top:1px solid var(--line); margin-top:40px;}
+  footer a{color:var(--ink-soft);}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">inno-creed</div>
+    <h1>설치 프로그램으로 설치하기</h1>
+    <p>JSON을 직접 편집할 필요 없이, <b>설치 프로그램(installer)</b>으로 클릭 몇 번이면 끝납니다.
+    내려받기부터 브라우저 연결까지 실제 화면 그대로 따라가세요.</p>
+    <div class="cta-row">
+      <a class="btn primary" href="https://github.com/zilhak/inno-creed/releases/latest">릴리즈 페이지 열기</a>
+      <a class="btn ghost" href="https://github.com/zilhak/inno-creed/blob/main/docs/INSTALL.md">전체 설치 문서</a>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="prep">
+      <h3>시작하기 전에</h3>
+      <ul>
+        <li><b>내 컴퓨터가 무엇인지 하나만 알면 됩니다.</b> Windows인지 Mac인지, 그리고 Windows라면 대부분 그냥 일반 Windows입니다.
+            아래 1단계에 고르는 법을 적어뒀습니다 — <b>모르겠으면 그냥 <code>inno-creed-installer-windows-x86_64.zip</code></b>을 받으세요.</li>
+        <li><b>Claude Desktop 앱이 필요합니다.</b> 이 설치 프로그램은 Claude Desktop에 inno-creed를 등록해 줍니다.
+            Desktop 앱이 켜져 있으면 설치 중에 종료를 요청하니, 미리 꺼두면 매끄럽습니다(창을 닫아도 트레이/메뉴바에 남아 있을 수 있습니다).</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>설치 단계</h2>
+    <p class="lead">내려받기 → 압축 풀기 → 실행 → 설치 → 확장 프로그램 연결. 전부 합쳐 10분이면 끝납니다.</p>
+
+    <ol class="steps">
+
+      <li>
+        <h3>릴리즈에서 <b><code>installer</code>가 들어간 파일</b>을 내려받습니다</h3>
+        <p><a href="https://github.com/zilhak/inno-creed/releases/latest">최신 릴리즈 페이지</a>를 열고 <b>Assets</b> 목록을 펼칩니다.
+        파일이 10개가 넘게 비슷한 이름으로 나열되는데, <b>이름에 <code>installer</code>가 들어간 것</b>만 고르면 됩니다.</p>
+        <figure>
+          <img src="assets/installer-guide/01-release-assets.png" alt="릴리즈 Assets 목록에 나열된 installer zip 파일들" class="mid">
+          <figcaption>이름에 <code>installer</code>가 들어간 줄들 — 그중 <b>내 컴퓨터에 맞는 하나</b>를 받습니다.</figcaption>
+        </figure>
+
+        <p style="margin-top:14px;">내 컴퓨터에 맞는 것은 이 표에서 고릅니다.</p>
+        <table>
+          <tr><th>내 컴퓨터</th><th>받을 파일</th></tr>
+          <tr><td><b>Windows</b> (대부분 여기)</td><td><code>inno-creed-installer-windows-x86_64.zip</code></td></tr>
+          <tr><td>Windows — Snapdragon·ARM 노트북</td><td><code>inno-creed-installer-windows-aarch64.zip</code></td></tr>
+          <tr><td><b>Mac</b> (M1 이후 모든 Mac)</td><td><code>inno-creed-installer-macos-arm64.zip</code></td></tr>
+          <tr><td>Linux (일반 PC·서버)</td><td><code>inno-creed-installer-linux-x86_64.zip</code></td></tr>
+          <tr><td>Linux — ARM</td><td><code>inno-creed-installer-linux-aarch64.zip</code></td></tr>
+        </table>
+
+        <div class="note">
+          <p><b>모르겠으면 <code>inno-creed-installer-windows-x86_64.zip</code>을 받으세요.</b> 회사에서 쓰는 컴퓨터는 거의 이쪽입니다.</p>
+          <p>확실히 하려면 — <b>Windows</b>: 설정 → 시스템 → 정보 → <b>시스템 종류</b>에 "64비트 운영 체제, x64 기반 프로세서"라고 적혀 있으면 <code>windows-x86_64</code>입니다.
+          <b>Mac</b>:  메뉴 → <b>이 Mac에 관하여</b>에 <b>칩</b>이 Apple M1/M2/M3…이면 <code>macos-arm64</code>입니다.</p>
+        </div>
+
+        <div class="warn">
+          <p>⚠️ <b>이름을 끝까지 확인하세요.</b> <code>inno-creed-extension.zip</code>(확장 프로그램)이나
+          <code>inno-creed-windows-x86_64.exe</code>처럼 <code>installer</code>가 <b>없는</b> 파일은 설치 프로그램이 아닙니다.
+          그것들을 받으면 이 안내대로 진행되지 않습니다.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>내려받은 zip 파일의 압축을 풉니다</h3>
+        <p>보통 <b>다운로드</b> 폴더에 저장됩니다. <b>Mac</b>은 파일을 더블클릭하면 같은 자리에 폴더가 생기고,
+        <b>Windows</b>는 오른쪽 클릭 → <b>압축 풀기</b>를 누릅니다.</p>
+        <figure>
+          <img src="assets/installer-guide/02-downloaded-zip.png" alt="다운로드 폴더에 받아진 inno-creed-installer zip 파일" class="narrow">
+          <figcaption>내려받은 파일. 이름이 <code>inno-creed-installer-…</code>로 시작하는지 다시 한 번 확인하세요(10MB 남짓입니다).</figcaption>
+        </figure>
+        <div class="warn">
+          <p>⚠️ <b>Windows는 "압축 풀기"를 꼭 하세요.</b> zip을 더블클릭해 안을 들여다본 채로 그 안의 <code>installer.exe</code>를 실행하면,
+          옆에 있어야 할 <code>payload</code> 폴더가 함께 풀리지 않아 설치가 중간에 멈춥니다.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>풀린 폴더 안의 <b><code>installer</code></b>를 더블클릭합니다</h3>
+        <p>폴더를 열면 세 가지가 들어 있습니다. 그중 <b><code>installer</code></b>(Windows는 <code>installer.exe</code>)를 더블클릭하세요.</p>
+        <figure>
+          <img src="assets/installer-guide/03-unzipped-folder.png" alt="압축을 푼 폴더 안의 installer, installer-cli, payload" class="narrow">
+          <figcaption>왼쪽 <b><code>installer</code></b>가 실행할 것입니다. <code>installer-cli</code>는 화면이 안 뜰 때 쓰는 예비용이고, <code>payload</code>는 설치될 파일이 든 폴더입니다.</figcaption>
+        </figure>
+        <div class="warn">
+          <p>🚨 <b>세 개를 한자리에 둔 채로 실행하세요.</b> <code>installer</code>만 바탕화면 등으로 옮기면
+          자기 옆에서 <code>payload</code>를 찾지 못해 "설치할 파일을 찾을 수 없습니다"로 멈춥니다.</p>
+        </div>
+        <div class="note">
+          <p><b>Windows에서 "Windows가 PC를 보호했습니다" 경고가 뜨면</b> — <b>추가 정보 → 실행</b>을 누르세요.
+          서명되지 않은 배포판이라 뜨는 정상 경고입니다.</p>
+          <p><b>Mac에서 "열 수 없음"이라며 아예 막히면</b> — 한 번만 허용해 주면 됩니다.
+          <b><a href="mac-first-run.html">macOS에서 인스톨러가 "열 수 없음"으로 막힐 때</a></b>를 따라가세요(화면 캡처 안내).</p>
+          <p><b>눌렀는데 창이 안 뜨거나 아무 반응이 없으면</b> — 같은 폴더의 <code>installer-cli</code>로 똑같이 설치할 수 있습니다.
+          <b><a href="installer-cli.html">글자 화면으로 설치하기(installer-cli)</a></b>를 보세요. <b>Enter만 계속 누르면 끝납니다.</b></p>
+        </div>
+      </li>
+
+      <li>
+        <h3>첫 화면에서 <b>[다음 →]</b>을 누릅니다</h3>
+        <p>설치 프로그램이 뜨면 안내를 읽고 <b>[다음 →]</b>만 누르면 됩니다.</p>
+        <figure>
+          <img src="assets/installer-guide/04-welcome.png" alt="inno-creed 설치 프로그램 첫 화면" class="mid">
+          <figcaption>첫 화면. 여기까지 왔으면 어려운 단계는 지났습니다.</figcaption>
+        </figure>
+        <div class="note">
+          <p><b>"아직 Claude Desktop이 없다면"</b> 안내가 보입니다. Claude Desktop을 아직 안 깔았다면
+          그 줄의 링크로 먼저 설치하고, 이 프로그램을 다시 실행하세요. inno-creed는 Claude Desktop에 등록되는 도구라
+          앱이 없으면 등록할 곳이 없습니다.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>설치 위치를 확인하고 <b>[설치]</b>를 누릅니다</h3>
+        <p>두 가지를 보여줍니다 — <b>어느 설정 파일에 등록할지</b>와 <b>프로그램을 어디에 놓을지</b>입니다.
+        둘 다 자동으로 찾아주므로 보통은 그대로 <b>[설치]</b>를 누르면 됩니다.</p>
+        <figure>
+          <img src="assets/installer-guide/04-confirm-location.png" alt="설치 위치 확인 화면 — 설정 파일 경로와 설치 폴더" class="mid">
+          <figcaption>초록색 <b>✓ 파일을 직접 열어 확인했습니다</b>가 보이면 설정 파일을 제대로 찾은 것입니다.</figcaption>
+        </figure>
+        <div class="note">
+          <p>이미 깔려 있으면 <b>"이미 vX.Y.Z이 설치돼 있습니다"</b>라고 알려줍니다. 그대로 [설치]를 누르면 덮어써서 새로 깔립니다 — 업그레이드도 같은 방법입니다.</p>
+          <p>설정 파일을 못 찾았다고 나오면 <b>[직접 선택…]</b>으로 골라주세요.
+          Mac은 <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>,
+          Windows는 <code>%APPDATA%\Claude\claude_desktop_config.json</code> 입니다.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>Claude Desktop이 켜져 있으면 <b>[Claude Desktop 종료하기]</b>를 누릅니다</h3>
+        <p>설정 파일을 안전하게 쓰려면 앱이 꺼져 있어야 합니다. 직접 끄지 않아도 됩니다 — <b>버튼이 대신 꺼줍니다.</b></p>
+        <figure>
+          <img src="assets/installer-guide/05-quit-claude.png" alt="Claude Desktop 종료 요청 화면" class="mid">
+          <figcaption>누르면 종료 요청을 보냅니다. <b>꺼지는 즉시 설치가 저절로 이어집니다</b> — 다른 버튼을 누를 필요가 없습니다.</figcaption>
+        </figure>
+        <div class="note">
+          <p>Claude Desktop은 <b>창을 닫아도 트레이(Windows)·메뉴바(Mac)에 남아 있습니다.</b> "껐는데 왜 이 화면이지?" 싶다면 그 때문입니다.</p>
+          <p>몇 초가 지나도 안 꺼지면 <b>[강제 종료]</b> 버튼이 따로 나타납니다. 저장하지 않은 작업이 있으면 잃을 수 있으니, 그 앞 단계가 안 될 때만 쓰세요.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>확장 프로그램을 브라우저에 올립니다 — <b>이걸 해야 로그인이 됩니다</b></h3>
+        <p>설치가 끝나면 이 화면이 나옵니다. 아마란스 로그인 정보를 Claude로 넘겨주는 다리라서,
+        <b>여기서 멈추면 도구는 보이지만 전부 "로그인하세요"만 돌려줍니다.</b></p>
+        <figure>
+          <img src="assets/installer-guide/06-extension-guide.png" alt="확장 프로그램 연결 안내 화면" class="mid">
+          <figcaption>① <b>[📁 확장 폴더 열기]</b>로 폴더를 열어두고 → ② 주소를 <b>[복사]</b>해 브라우저에 붙여넣어 <b>개발자 모드</b>를 켜고 → ③ <b>압축해제된 확장 프로그램을 로드</b>로 그 폴더를 고릅니다.</figcaption>
+        </figure>
+        <p>화면 그대로 따라가는 자세한 안내는 <b><a href="extension-install.html">확장 프로그램 설치 방법</a></b>에 있습니다(개발자 모드 위치, 폴더 고르는 화면까지 캡처로).</p>
+        <div class="warn">
+          <p>🚨 <b>예전에 확장을 올려둔 적이 있다면, 먼저 그 항목을 삭제하세요.</b>
+          확장 ID가 같아서 같은 것을 두 벌 올릴 수 없습니다. 특히 예전에 <b>다운로드 폴더</b>에 풀어서 올렸다면,
+          그 폴더가 지워지는 순간 확장이 조용히 죽어 있습니다 — 겉보기엔 설치돼 있는데 아무것도 전달되지 않습니다.</p>
+          <p>🚨 <b>이번에 고른 폴더는 지우거나 옮기면 안 됩니다.</b> 브라우저가 그 폴더를 계속 읽습니다.
+          설치 프로그램이 만들어 준 폴더를 그대로 쓰는 것이 가장 안전합니다.</p>
+        </div>
+        <div class="note">
+          <p>올린 뒤 <b><a href="https://gw.innogrid.com">gw.innogrid.com</a>에 로그인</b>하면 로그인 정보가 자동으로 전달됩니다. 이미 로그인돼 있다면 새로고침하세요.</p>
+        </div>
+      </li>
+
+      <li>
+        <h3>완료 화면에서 결과를 확인합니다</h3>
+        <p>마지막 화면이 설치 결과와 <b>인증까지 실제로 되는지</b>를 함께 보여줍니다.</p>
+        <figure>
+          <img src="assets/installer-guide/07-done.png" alt="설치 완료 화면 — 인증 확인 결과 포함" class="mid">
+          <figcaption>초록색 <b>✓ 인증까지 확인됐습니다</b>가 뜨면 끝입니다.</figcaption>
+        </figure>
+        <div class="ok">
+          <p>✅ <b>Claude Desktop을 다시 실행하면</b> 채팅·Cowork 탭에서 inno-creed 도구를 쓸 수 있습니다.
+          "아마란스에서 내 오늘 일정 알려줘"처럼 말로 시켜보세요.</p>
+        </div>
+        <div class="note">
+          <p><b>"등록은 됐지만 인증 확인은 안 됐습니다"(노란색)가 뜨면</b> — 보통 확장 프로그램을 아직 안 올렸거나 아마란스에 로그인이 안 된 경우입니다.
+          앞 단계를 마친 뒤 Claude에서 도구를 한 번 불러보면 그때 다시 잡습니다. <b>[자세히 보기]</b>를 펼치면 어느 단계에서 막혔는지 그대로 나옵니다.</p>
+          <p><b>Code 탭과 Claude Code CLI는 설정 파일이 따로입니다.</b> 거기서도 쓰려면 터미널에서 <code>claude mcp add</code>로 한 번 더 등록해야 합니다 — 완료 화면에도 같은 안내가 적혀 있습니다.</p>
+        </div>
+      </li>
+
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>자주 막히는 곳</h2>
+
+    <details class="faq">
+      <summary>도구는 보이는데 전부 "로그인하세요"라고 합니다</summary>
+      <p>확장 프로그램이 안 올라갔거나, 올라갔는데 <b>죽어 있는</b> 경우입니다.
+      <code>chrome://extensions</code>에서 <b>inno-creed 크레덴셜 브릿지</b> 카드가 있는지, 토글이 켜져 있는지, 오류 표시가 없는지 보세요.</p>
+      <p>특히 <b>예전에 다운로드 폴더에서 올렸다가 그 폴더를 지운 경우</b>가 흔합니다. 이때는 카드가 남아 있어도 동작하지 않습니다 —
+      그 항목을 삭제하고, 설치 프로그램이 만든 폴더로 다시 올리세요.</p>
+    </details>
+
+    <details class="faq">
+      <summary>Claude Desktop을 껐는데도 "종료해주세요" 화면이 그대로입니다</summary>
+      <p>창만 닫혔고 <b>트레이(Windows)·메뉴바(Mac)에 살아 있는</b> 상태입니다. 화면의 <b>[Claude Desktop 종료하기]</b>를 누르세요.
+      꺼지면 설치가 저절로 이어집니다. 그래도 안 꺼지면 몇 초 뒤 나타나는 <b>[강제 종료]</b>를 쓰세요.</p>
+    </details>
+
+    <details class="faq">
+      <summary>"설치할 inno-creed 실행 파일을 찾을 수 없습니다"가 나옵니다</summary>
+      <p><code>installer</code>를 혼자만 다른 곳으로 옮겼을 때 납니다. 설치 프로그램은 <b>자기 바로 옆의 <code>payload</code> 폴더</b>에서 설치할 파일을 찾습니다.
+      압축을 푼 폴더를 통째로 둔 채 그 안의 <code>installer</code>를 실행하세요.
+      Windows에서 zip을 <b>풀지 않고</b> 안에서 바로 실행했을 때도 같은 증상이 납니다.</p>
+    </details>
+
+    <details class="faq">
+      <summary>Mac에서 설치 프로그램이 아예 안 열립니다</summary>
+      <p>"열 수 없음" 경고로 막힌 것입니다. 한 번만 허용해 주면 됩니다 —
+      <a href="mac-first-run.html">macOS에서 인스톨러가 "열 수 없음"으로 막힐 때</a>를 따라가세요.</p>
+    </details>
+
+    <details class="faq">
+      <summary>지우고 싶습니다</summary>
+      <p>설치할 때 쓴 <code>installer</code>를 <code>--uninstall</code> 옵션으로 실행하면 등록 해제와 파일 삭제를 함께 해줍니다.
+      Windows는 <b>설정 → 앱 → inno-creed → 제거</b>로도 됩니다.</p>
+    </details>
+
+    <details class="faq">
+      <summary>창이 안 뜨고 아무 일도 일어나지 않습니다</summary>
+      <p>그래픽 초기화에 실패하는 환경입니다. 같은 폴더의 <b><code>installer-cli</code></b>를 대신 실행하면 같은 설치를 글자 화면으로 진행합니다 —
+      <a href="installer-cli.html">글자 화면으로 설치하기(installer-cli)</a>에 화면과 단계별 설명이 있습니다. <b>Enter만 계속 눌러도 설치됩니다.</b></p>
+    </details>
+
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a href="index.html">설치 가이드 홈</a> ·
+    <a href="installer-cli.html">글자 화면으로 설치하기</a> ·
+    <a href="mac-first-run.html">macOS 첫 실행 허용하기</a> ·
+    <a href="extension-install.html">확장 프로그램 설치 방법</a> ·
+    <a href="https://github.com/zilhak/inno-creed">GitHub 저장소</a>
+  </div>
+</footer>
+
+</body>
+</html>

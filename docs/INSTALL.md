@@ -8,6 +8,10 @@
 
 Claude Desktop 앱의 **채팅·Cowork 탭**에서 쓸 거라면, 아래 1~6번의 JSON 편집을 직접 할 필요가 없습니다.
 
+> 📖 **화면 캡처로 따라가려면** → [설치 프로그램으로 설치하기](installer-guide.html)([웹](https://zilhak.github.io/inno-creed/installer-guide.html)).
+> 내려받기부터 확장 프로그램 연결까지 8단계입니다.
+> 창이 안 뜨는 컴퓨터라면 [글자 화면으로 설치하기](installer-cli.html)로 같은 설치를 할 수 있습니다(Enter만 누르면 됩니다).
+
 1. [릴리즈](https://github.com/zilhak/inno-creed/releases/latest)에서 `inno-creed-installer-<OS>.zip`을 받습니다.
    - Windows x64: `inno-creed-installer-windows-x86_64.zip`
    - Windows ARM64: `inno-creed-installer-windows-aarch64.zip`

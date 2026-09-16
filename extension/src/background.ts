@@ -30,29 +30,53 @@ function matchesDomain(domain: string): boolean {
 // 프로세스라 포트를 재사용할 이유가 없다 — 보낼 때마다 새로 연결(=새 프로세스 스폰)한다.
 // 응답을 받은 뒤 포트가 "Native host has exited."로 끊기는 건 정상 종료이지, 실패가
 // 아니다. 응답 **전**에 끊기는 경우만 진짜 실패(호스트 미설치·크래시 등)로 본다.
-function sendNative(message: Record<string, unknown>): void {
-  const p = chrome.runtime.connectNative(HOST_NAME);
-  let responded = false;
-  p.onMessage.addListener((response) => {
-    responded = true;
-    if (!response?.ok) {
-      console.warn("[inno-creed] native host 처리 실패:", response?.error);
+function sendNative(message: Record<string, unknown>): Promise<boolean> {
+  return new Promise((resolve) => {
+    const p = chrome.runtime.connectNative(HOST_NAME);
+    let responded = false;
+    p.onMessage.addListener((response) => {
+      responded = true;
+      if (!response?.ok) {
+        console.warn("[inno-creed] native host 처리 실패:", response?.error);
+      }
+      resolve(response?.ok === true);
+    });
+    p.onDisconnect.addListener(() => {
+      // lastError는 콜백 안에서 한 번이라도 읽어야 크롬이 "확인됨"으로 처리한다 — 안 읽으면
+      // (응답을 이미 받아 무시하는 경로에서도) 크롬이 "Unchecked runtime.lastError"를 별도로
+      // 콘솔에 찍는다. 그래서 `responded`와 무관하게 항상 읽는다.
+      const err = chrome.runtime.lastError;
+      if (!responded) {
+        console.warn("[inno-creed] native host 연결 실패:", err?.message);
+        resolve(false);
+      }
+    });
+    try {
+      p.postMessage(message);
+    } catch (e) {
+      console.warn("[inno-creed] native host 전송 실패:", e);
+      resolve(false);
     }
   });
-  p.onDisconnect.addListener(() => {
-    // lastError는 콜백 안에서 한 번이라도 읽어야 크롬이 "확인됨"으로 처리한다 — 안 읽으면
-    // (응답을 이미 받아 무시하는 경로에서도) 크롬이 "Unchecked runtime.lastError"를 별도로
-    // 콘솔에 찍는다. 그래서 `responded`와 무관하게 항상 읽는다.
-    const err = chrome.runtime.lastError;
-    if (!responded) {
-      console.warn("[inno-creed] native host 연결 실패:", err?.message);
-    }
-  });
-  try {
-    p.postMessage(message);
-  } catch (e) {
-    console.warn("[inno-creed] native host 전송 실패:", e);
-  }
+}
+
+// 전달이 실패하는 가장 흔한 이유는 **native host가 아직 등록되지 않은 것**이다(서버를 나중에
+// 깔았거나, 확장을 먼저 올렸거나, 그 브라우저 자리에 매니페스트가 없는 경우). 예전에는 로드
+// 직후 한 번 보내고 실패하면 그것으로 끝이라, 나중에 등록이 생겨도 확장은 모른 채 영영 안
+// 붙었다 — 증상은 "도구는 보이는데 전부 로그인하세요"뿐이라 원인을 찾을 길이 없다.
+// 그래서 **성공할 때까지** 주기적으로 다시 시도한다. 성공하면 곧바로 끈다.
+const RETRY_ALARM = "inno-creed-retry";
+const RETRY_PERIOD_MINUTES = 1;
+
+async function armRetry(): Promise<void> {
+  // 이미 걸려 있으면 그대로 둔다 — 다시 만들면 주기가 처음부터 시작돼 재시도가 밀린다.
+  if (await chrome.alarms.get(RETRY_ALARM)) return;
+  await chrome.alarms.create(RETRY_ALARM, { periodInMinutes: RETRY_PERIOD_MINUTES });
+  console.log(`[inno-creed] ${RETRY_PERIOD_MINUTES}분마다 다시 시도합니다.`);
+}
+
+async function disarmRetry(): Promise<void> {
+  await chrome.alarms.clear(RETRY_ALARM);
 }
 
 async function syncCookies(): Promise<void> {
@@ -64,10 +88,20 @@ async function syncCookies(): Promise<void> {
   const signKeyCookie = cookies.find((c) => c.name === "BIZCUBE_HK");
   if (!authTokenCookie || !signKeyCookie) {
     console.log(`[inno-creed] ${DOMAIN} 쿠키 ${cookies.length}개 중 BIZCUBE_AT/HK 없음 — 미로그인 상태로 보임`);
+    // 미로그인은 실패가 아니다. 로그인하면 `cookies.onChanged`가 깨우므로 재시도가 필요 없다.
+    await disarmRetry();
     return;
   }
   console.log("[inno-creed] BIZCUBE_AT/HK 발견, native host로 전달");
-  sendNative({ authToken: authTokenCookie.value, signKey: signKeyCookie.value });
+  const ok = await sendNative({ authToken: authTokenCookie.value, signKey: signKeyCookie.value });
+  if (ok) {
+    await disarmRetry();
+    return;
+  }
+  console.warn(
+    "[inno-creed] 전달에 실패했습니다 — inno-creed가 아직 설치되지 않았거나 native host 등록이 이 브라우저 자리에 없을 수 있습니다.",
+  );
+  await armRetry();
 }
 
 function scheduleSync(): void {
@@ -88,5 +122,10 @@ chrome.cookies.onChanged.addListener((changeInfo) => {
   }
 });
 
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === RETRY_ALARM) scheduleSync();
+});
+
 // 익스텐션이 막 로드된 시점에 이미 로그인돼 있을 수 있으니 즉시 한 번 동기화.
-syncCookies();
+// 서비스워커는 알람으로도 깨어나므로, 그때 이 줄과 알람 처리가 겹치지 않도록 같은 디바운스를 탄다.
+scheduleSync();

@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "inno-creed 크레덴셜 브릿지",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "gw.innogrid.com 로그인 세션 쿠키를 inno-creed MCP 서버에 전달합니다 (Chrome/Edge).",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyZNT9FppFZmZ3hrXCHaOutdmjb6nGDOmBAabTVkyjzhLTyow365XGA0NVk5t43PZUZa69bI7lHi7CNPEUZKMBaYBOdXDui8+7/gfZ/MHRm5m1nAqZvLyXTW2b32iP2fLdSEgCkJHkI6edNDX8YBZyFXuLO+SJ7UGeHOz9srf/iZnOzdwBT5Gns90jvFT5fSsooQ1lbxJHWtSy6m+DJWAzsdgXKNabM7zUFThOu6HyPeVlAneBPT/A9OlrmMYXIZ/W3oDMJZNnkEVEhb5iiZOB6mbE9TaLEN0Fh8uTAx0vH9MIgKROCWpHhmx9spUf2j5BRnQtJZntXyEoSgtYESd+QIDAQAB",
-  "permissions": ["cookies", "nativeMessaging"],
+  "permissions": ["cookies", "nativeMessaging", "alarms"],
   "host_permissions": ["*://gw.innogrid.com/*"],
   "background": {
     "service_worker": "background.js",

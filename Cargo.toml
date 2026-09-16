@@ -3,7 +3,7 @@ members = [".", "crates/config-kit", "installer"]
 
 [package]
 name = "inno-creed"
-version = "2.3.1"
+version = "2.3.2"
 edition = "2024"
 
 [dependencies]

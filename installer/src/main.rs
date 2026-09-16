@@ -8,7 +8,7 @@
 
 mod app;
 mod fatal;
-use installer::{install, payload};
+use installer::{install, payload, platform};
 #[cfg(target_os = "windows")]
 use installer::registry;
 

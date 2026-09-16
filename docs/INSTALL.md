@@ -6,7 +6,7 @@
 
 ## 0. 비개발자라면 — GUI 인스톨러 (권장)
 
-Claude Desktop 앱(채팅·Cowork·Code 탭)에서 쓸 거라면, 아래 1~6번의 JSON 편집을 직접 할 필요가 없습니다.
+Claude Desktop 앱의 **채팅·Cowork 탭**에서 쓸 거라면, 아래 1~6번의 JSON 편집을 직접 할 필요가 없습니다.
 
 1. [릴리즈](https://github.com/zilhak/inno-creed/releases/latest)에서 `inno-creed-installer-<OS>.zip`을 받습니다.
    - Windows x64: `inno-creed-installer-windows-x86_64.zip`
@@ -28,11 +28,12 @@ Claude Desktop 앱(채팅·Cowork·Code 탭)에서 쓸 거라면, 아래 1~6번�
      (최신 macOS에서는 예전의 **우클릭 → 열기** 우회가 더 이상 통하지 않습니다.)
    - **Linux**: 압축 프로그램이 실행 권한을 떨어뜨렸다면 `chmod +x installer payload/inno-creed`.
 4. 화면 안내를 따라갑니다: 환영 → Claude Desktop 설정 파일 자동 감지 → 설치 위치 확인 → (Claude Desktop이 켜져 있으면 종료 요청) → 설치 → 확장 프로그램 연결 안내 → 완료.
-5. 완료 화면에 `doctor` 인증 확인 결과가 함께 뜹니다. Claude Desktop을 (다시) 켜면 채팅·Cowork·Code 탭에서 바로 도구를 쓸 수 있습니다.
+5. 완료 화면에 `doctor` 인증 확인 결과가 함께 뜹니다. Claude Desktop을 (다시) 켜면 채팅·Cowork 탭에서 바로 도구를 쓸 수 있습니다.
+   **Code 탭과 Claude Code CLI는 설정 파일이 따로입니다**(`~/.claude.json`) — 거기서도 쓰려면 [3번](#3-mcp-클라이언트에-등록)의 `claude mcp add`로 한 번 더 등록하세요.
 
 제거하고 싶으면 같은 `installer`를 `--uninstall` 옵션으로 실행하거나(`installer --uninstall`), Windows는 **설정 → 앱 → inno-creed → 제거**에서도 됩니다.
 
-> **Claude Code CLI(터미널)만 쓸 거라면** 이 인스톨러 대신 [3번](#3-mcp-클라이언트에-등록)의 `claude mcp add` 한 줄이 더 간단합니다. GUI 인스톨러는 Claude Desktop의 설정 파일(`claude_desktop_config.json`)에 등록하는 방식이라 데스크톱 앱 계열(채팅·Cowork·Code)을 겨냥합니다.
+> **Claude Code CLI(터미널)만 쓸 거라면** 이 인스톨러 대신 [3번](#3-mcp-클라이언트에-등록)의 `claude mcp add` 한 줄이 더 간단합니다. GUI 인스톨러는 Claude Desktop의 설정 파일(`claude_desktop_config.json`)에 등록하는 방식이라 **채팅·Cowork 탭**을 겨냥합니다 — Code 탭은 Claude Code와 같은 설정을 쓰므로 이 인스톨러로는 붙지 않습니다.
 >
 > GUI 인스톨러가 안 되거나(사내 정책으로 실행 파일이 막힘 등), 직접 확인하며 진행하고 싶다면 아래 1번부터 수동으로 진행하세요.
 

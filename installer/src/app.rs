@@ -1,28 +1,11 @@
 //! 마법사 상태 머신 — 화면 전환과 각 화면의 렌더링.
 
-use crate::{install, payload};
+use crate::{install, payload, platform};
 #[cfg(target_os = "windows")]
 use crate::registry;
 use eframe::egui;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-
-/// 확장 관리 화면 주소는 브라우저마다 다른데, 설치 프로그램은 사용자가 어느 쪽을
-/// 쓰는지 알 수 없다. 그래서 열어주는 대신 **어느 주소를 보여줄지**만 사용자가 고른다.
-#[derive(PartialEq, Clone, Copy)]
-enum ExtBrowser {
-    Chrome,
-    Edge,
-}
-
-impl ExtBrowser {
-    fn url(self) -> &'static str {
-        match self {
-            Self::Chrome => "chrome://extensions",
-            Self::Edge => "edge://extensions",
-        }
-    }
-}
 
 enum Screen {
     Welcome,
@@ -49,7 +32,8 @@ pub struct InstallerApp {
     doctor_output: Option<String>,
     doctor_ok: bool,
     doctor_expanded: bool,
-    ext_browser: ExtBrowser,
+    /// `platform::extension_browsers()`에서 고른 항목의 인덱스.
+    ext_browser: usize,
     copied_at: Option<Instant>,
 }
 
@@ -92,7 +76,7 @@ impl Default for InstallerApp {
             doctor_output: None,
             doctor_ok: false,
             doctor_expanded: false,
-            ext_browser: ExtBrowser::Chrome,
+            ext_browser: 0,
             copied_at: None,
         }
     }
@@ -135,7 +119,7 @@ impl InstallerApp {
             ui.heading("inno-creed 설치");
             ui.add_space(12.0);
             ui.label("이노그리드 아마란스를 Claude로 다루는 inno-creed를 설치합니다.");
-            ui.label("Claude Desktop 앱의 채팅·Cowork·Code 탭에서 곧바로 쓸 수 있게 등록해 드립니다.");
+            ui.label("Claude Desktop 앱의 채팅·Cowork 탭에서 곧바로 쓸 수 있게 등록해 드립니다.");
             ui.add_space(20.0);
 
             ui.group(|ui| {
@@ -364,12 +348,23 @@ impl InstallerApp {
     fn extension_guide_screen(&mut self, ui: &mut egui::Ui) {
         ui.heading("확장 프로그램 연결");
         ui.add_space(12.0);
-        ui.label("아마란스 로그인 정보를 안전하게 가져오려면 Chrome/Edge 확장 프로그램을 마저 등록해야 합니다. 아직 안 하면 로그인 인증이 안 잡힙니다.");
+        let browsers = platform::extension_browsers();
+        let has_edge = browsers.iter().any(|b| b.name == "Edge");
+        let names = browsers.iter().map(|b| b.name).collect::<Vec<_>>().join("/");
+        ui.label(format!(
+            "아마란스 로그인 정보를 안전하게 가져오려면 {names} 확장 프로그램을 마저 등록해야 합니다. \
+             아직 안 하면 로그인 인증이 안 잡힙니다."
+        ));
         ui.add_space(8.0);
         ui.label("1. 아래 [확장 폴더 열기]로 열리는 폴더를 기억해두세요.");
         ui.label("2. 아래 주소를 복사해 브라우저 주소창에 붙여넣어 확장 관리 화면을 열고 개발자 모드를 켭니다.");
-        ui.label("   (Chrome은 화면 우측 상단, Edge는 화면 좌측 하단에 토글이 있습니다)");
-        ui.label("3. \"압축해제된 확장 프로그램을 로드합니다\"(Edge는 \"압축 풀린 파일 로드\")를 눌러 방금 그 폴더를 선택합니다.");
+        if has_edge {
+            ui.label("   (Chrome은 화면 우측 상단, Edge는 화면 좌측 하단에 토글이 있습니다)");
+            ui.label("3. \"압축해제된 확장 프로그램을 로드합니다\"(Edge는 \"압축 풀린 파일 로드\")를 눌러 방금 그 폴더를 선택합니다.");
+        } else {
+            ui.label("   (토글은 화면 우측 상단에 있습니다)");
+            ui.label("3. \"압축해제된 확장 프로그램을 로드합니다\"를 눌러 방금 그 폴더를 선택합니다.");
+        }
         ui.label("4. 목록에 \"inno-creed 크레덴셜 브릿지\" 카드가 뜨고 토글이 켜져 있으면 성공입니다.");
         ui.add_space(16.0);
 
@@ -388,12 +383,15 @@ impl InstallerApp {
                     let _ = open::that(ext_dir);
                 }
             }
-            ui.selectable_value(&mut self.ext_browser, ExtBrowser::Chrome, "Chrome 주소");
-            ui.selectable_value(&mut self.ext_browser, ExtBrowser::Edge, "Edge 주소");
+            if browsers.len() > 1 {
+                for (i, b) in browsers.iter().enumerate() {
+                    ui.selectable_value(&mut self.ext_browser, i, format!("{} 주소", b.name));
+                }
+            }
         });
 
         ui.add_space(8.0);
-        let url = self.ext_browser.url();
+        let url = browsers[self.ext_browser.min(browsers.len() - 1)].url;
         let mut copy_clicked = false;
         ui.horizontal(|ui| {
             egui::Frame::group(ui.style()).show(ui, |ui| {
@@ -409,15 +407,17 @@ impl InstallerApp {
         }
         self.copy_toast(ui.ctx());
 
-        ui.add_space(16.0);
-        ui.group(|ui| {
-            ui.set_width(460.0);
-            ui.label(
-                "⚠️  Edge를 새로 시작하면 \"개발자 모드에서 확장 사용 해제\" 경고 팝업이 뜰 수 \
-                 있습니다. 여기서 [확장 사용 해제]를 누르면 방금 설치한 확장이 꺼집니다 — \
-                 이 버튼은 누르지 말고 [나중에]를 누르세요.",
-            );
-        });
+        if has_edge {
+            ui.add_space(16.0);
+            ui.group(|ui| {
+                ui.set_width(460.0);
+                ui.label(
+                    "⚠️  Edge를 새로 시작하면 \"개발자 모드에서 확장 사용 해제\" 경고 팝업이 뜰 수 \
+                     있습니다. 여기서 [확장 사용 해제]를 누르면 방금 설치한 확장이 꺼집니다 — \
+                     이 버튼은 누르지 말고 [나중에]를 누르세요.",
+                );
+            });
+        }
 
         ui.add_space(24.0);
         if ui
@@ -455,7 +455,8 @@ impl InstallerApp {
                     "⚠️ 등록은 됐지만 인증 확인은 안 됐습니다 — 자세히 보기에서 원인을 확인하세요.",
                 );
             }
-            ui.label("Claude Desktop을 (다시) 실행하면 채팅·Cowork·Code 탭에서 inno-creed 도구를 쓸 수 있습니다.");
+            ui.label("Claude Desktop을 (다시) 실행하면 채팅·Cowork 탭에서 inno-creed 도구를 쓸 수 있습니다.");
+            ui.small("Code 탭·Claude Code CLI는 설정 파일이 따로입니다 — 거기서도 쓰려면 `claude mcp add`로 한 번 더 등록하세요.");
 
             if let Some(bak) = self.install_result.as_ref().and_then(|r| r.backup_path.clone()) {
                 ui.add_space(6.0);

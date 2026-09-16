@@ -10,9 +10,10 @@
 //! installer-cli.exe (또는 macOS/Linux 콘솔 실행 파일)
 //! payload/
 //!   inno-creed(.exe)
-//!   extension/          (Windows만)
+//!   extension/          (전 OS — 확장 브릿지가 모든 OS의 정식 경로다)
 //!     manifest.json
 //!     background.js
+//!     icons/            (없으면 Chrome이 매니페스트 파싱 단계에서 로드를 거부한다)
 //! ```
 
 use std::path::PathBuf;
@@ -25,15 +26,7 @@ pub fn payload_dir() -> PathBuf {
         .join("payload")
 }
 
-#[cfg(target_os = "windows")]
-pub fn inno_creed_binary_name() -> &'static str {
-    "inno-creed.exe"
-}
-
-#[cfg(not(target_os = "windows"))]
-pub fn inno_creed_binary_name() -> &'static str {
-    "inno-creed"
-}
+pub use crate::platform::binary_name as inno_creed_binary_name;
 
 pub fn payload_binary_path() -> PathBuf {
     payload_dir().join(inno_creed_binary_name())
@@ -57,20 +50,4 @@ pub fn verify_payload_present() -> Result<(), String> {
     Ok(())
 }
 
-pub fn default_install_dir() -> PathBuf {
-    #[cfg(target_os = "windows")]
-    {
-        let base = std::env::var_os("LOCALAPPDATA").unwrap_or_default();
-        PathBuf::from(base).join("inno-creed")
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let home = std::env::var_os("HOME").unwrap_or_default();
-        PathBuf::from(home).join("Library/Application Support/inno-creed")
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let home = std::env::var_os("HOME").unwrap_or_default();
-        PathBuf::from(home).join(".local/share/inno-creed")
-    }
-}
+pub use crate::platform::default_install_dir;

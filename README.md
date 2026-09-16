@@ -186,7 +186,7 @@ MCP 클라이언트로 실행할 땐 등록 설정의 `env` 블록에 넣으세�
 
 ### GUI 인스톨러 (비개발자 권장)
 
-Claude Desktop(채팅·Cowork·Code 탭)에서 쓸 거라면, JSON을 직접 안 만져도 되는 GUI 인스톨러를 받으세요.
+Claude Desktop의 **채팅·Cowork 탭**에서 쓸 거라면, JSON을 직접 안 만져도 되는 GUI 인스톨러를 받으세요. (Code 탭·CLI는 Claude Code와 설정을 공유하므로 아래 `claude mcp add`로 등록합니다.)
 
 | OS / arch | 파일 |
 |---|---|

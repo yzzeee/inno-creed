@@ -35,14 +35,8 @@ pub fn perform_install(
 
     let dest_bin = install_dir.join(dest_bin_name);
     std::fs::copy(src_bin, &dest_bin)?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perm = std::fs::metadata(&dest_bin)?.permissions();
-        perm.set_mode(0o755);
-        std::fs::set_permissions(&dest_bin, perm)?;
-    }
+    // 실행 권한·격리 딱지처럼 "복사 직후 OS마다 해줘야 하는 일"은 platform이 안다.
+    crate::platform::post_copy(&dest_bin);
 
     let backup_path = config_kit::backup(config_path)?;
     let mut root = config_kit::read_json(config_path)?;
@@ -274,6 +268,39 @@ mod tests {
         );
         // 기존에 있던 무관한 키는 손대지 않아야 한다.
         assert_eq!(written["preferences"]["epitaxyPrefs"]["x"], 1);
+
+        std::fs::remove_dir_all(&work).ok();
+    }
+
+    /// macOS는 `std::fs::copy`가 확장속성까지 복사하므로, 내려받은 payload에 붙어 있던
+    /// 격리 딱지가 설치본으로 따라간다. 그대로 두면 설치 직후 인스톨러가 본체를 실행할 때도,
+    /// Claude Desktop이 MCP 서버로 띄울 때도 Gatekeeper가 막는다 — 실제로 사용자가 겪었다.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn install_strips_quarantine_from_installed_binary() {
+        let work = temp_dir("quarantine");
+        let src_bin = work.join("fake-inno-creed");
+        std::fs::write(&src_bin, b"fake").unwrap();
+        std::process::Command::new("/usr/bin/xattr")
+            .args(["-w", "com.apple.quarantine", "0081;00000000;Chrome;"])
+            .arg(&src_bin)
+            .status()
+            .unwrap();
+
+        let config_path = work.join("claude_desktop_config.json");
+        let install_dir = work.join("installed");
+        let result =
+            perform_install(&config_path, &install_dir, &src_bin, None, "inno-creed").unwrap();
+
+        let out = std::process::Command::new("/usr/bin/xattr")
+            .arg(&result.exe_path)
+            .output()
+            .unwrap();
+        let listed = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            !listed.contains("com.apple.quarantine"),
+            "설치본에 격리 딱지가 남았다: {listed}"
+        );
 
         std::fs::remove_dir_all(&work).ok();
     }

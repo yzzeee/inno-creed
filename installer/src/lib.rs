@@ -3,5 +3,6 @@
 pub mod cli;
 pub mod install;
 pub mod payload;
+pub mod platform;
 #[cfg(windows)]
 pub mod registry;

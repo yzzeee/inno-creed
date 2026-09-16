@@ -176,11 +176,22 @@ fn run(
         writeln!(output, "기존 설정 백업: {}", backup.display())?;
     }
     if let Some(extension) = result.extension_dir {
+        // 주소 목록은 GUI와 같은 곳(platform)에서 온다 — native host를 등록하지 않는
+        // 브라우저를 여기서 권하면 브릿지가 조용히 안 붙는다.
+        let browsers = crate::platform::extension_browsers();
+        let addresses = browsers
+            .iter()
+            .map(|b| format!("{}: {}", b.name, b.url))
+            .collect::<Vec<_>>()
+            .join(" 또는 ");
         writeln!(
             output,
-            "\n확장 프로그램 연결:\n1. Chrome: chrome://extensions 또는 Edge: edge://extensions 를 여세요.\n2. 개발자 모드를 켜고 '압축해제된 확장 프로그램 로드'를 선택하세요.\n3. 다음 폴더를 선택하세요: {}\n4. inno-creed 크레덴셜 브릿지를 켜고 아마란스에 로그인하세요.\nEdge의 확장 사용 해제 경고에서는 '나중에'를 선택하세요.",
+            "\n확장 프로그램 연결:\n1. {addresses} 를 여세요.\n2. 개발자 모드를 켜고 '압축해제된 확장 프로그램 로드'를 선택하세요.\n3. 다음 폴더를 선택하세요: {}\n4. inno-creed 크레덴셜 브릿지를 켜고 아마란스에 로그인하세요.",
             extension.display()
         )?;
+        if browsers.iter().any(|b| b.name == "Edge") {
+            writeln!(output, "Edge의 확장 사용 해제 경고에서는 '나중에'를 선택하세요.")?;
+        }
     }
     if confirm(
         input,

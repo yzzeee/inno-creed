@@ -19,6 +19,7 @@
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 use std::io::{Read, Write};
+use std::path::PathBuf;
 
 use crate::creds::extension_cache_path;
 
@@ -105,40 +106,162 @@ fn clear_cache() -> Result<()> {
     }
 }
 
-/// Native Messaging 호스트를 등록한다 — 매니페스트 JSON을 쓰고 Chrome/Edge 레지스트리
-/// 하이브 둘 다에 걸어준다(두 브라우저가 각자 다른 하이브를 본다). `reg.exe`를 쓰는 건
-/// Windows에 항상 있는 도구라 레지스트리 FFI를 새로 안 만들어도 되기 때문 — 인자를
-/// `Command::args`로 넘기므로(셸을 안 거침) 경로에 공백이 있어도 별도 이스케이프가
-/// 필요 없다.
-/// native host 매니페스트 경로. **`install`(쓰기)과 `doctor`(확인)가 공유한다** — 경로를 두
-/// 군데 적으면 "등록했는데 doctor는 없다고 한다"가 생긴다. Windows 외에는 등록 자체가 없다.
+/// 확장 프로그램의 런타임 파일 일습. 저장소 `extension/`의 것을 **빌드 시점에 그대로 박아
+/// 넣는다.**
+///
+/// **왜 내장하나**: 설치 경로가 셋인데(GUI 인스톨러 · `installer --cli` · `claude mcp add`),
+/// 앞의 둘은 `payload/extension/`으로 확장 파일이 따라가지만 **맨 바이너리 경로만 사용자가
+/// 릴리즈에서 zip을 따로 받아와야 했다.** 그 한 단계 때문에 확장 설치가 "설치 절차"가 아니라
+/// "나중에 하는 별도 숙제"가 된다. 바이너리가 스스로 꺼내놓으면 세 경로가 같은 모양이 되고,
+/// 바이너리와 확장의 버전이 어긋날 여지도 없어진다.
+///
+/// installer가 실행 파일을 내장하지 않는 원칙(`installer/src/payload.rs`)과 어긋나지 않는다 —
+/// 거기서 피하려는 것은 "exe 안에 exe를 넣었다가 디스크에 풀어쓰기"(백신 드로퍼 휴리스틱)이고,
+/// 여기 담기는 것은 json·js·png 정적 자산이다.
+const EXTENSION_FILES: &[(&str, &[u8])] = &[
+    ("manifest.json", include_bytes!("../extension/manifest.json")),
+    ("background.js", include_bytes!("../extension/background.js")),
+    ("icons/icon16.png", include_bytes!("../extension/icons/icon16.png")),
+    ("icons/icon32.png", include_bytes!("../extension/icons/icon32.png")),
+    ("icons/icon48.png", include_bytes!("../extension/icons/icon48.png")),
+    ("icons/icon128.png", include_bytes!("../extension/icons/icon128.png")),
+];
+
+/// 확장 파일을 꺼내놓고 그 폴더를 돌려준다. 기본 위치는 캐시 파일과 같은 데이터 디렉토리 —
+/// 사용자가 임의로 푼 폴더와 달리 **지워질 일이 적은 자리**여야 한다. Chrome은 압축해제 확장을
+/// 로드한 그 원본 폴더에서 계속 읽으므로, 폴더가 사라지면 확장도 사라진다.
+///
+/// 이미 있으면 덮어쓴다(업그레이드). 구버전에만 있던 파일이 남는 문제는 목록이 고정이라
+/// 발생하지 않는다.
+pub fn unpack_extension(dest: Option<PathBuf>) -> Result<PathBuf> {
+    let dir = match dest {
+        Some(d) => d,
+        None => extension_cache_path()?
+            .parent()
+            .context("데이터 디렉토리를 정할 수 없습니다")?
+            .join("extension"),
+    };
+    for (name, bytes) in EXTENSION_FILES {
+        let path = dir.join(name);
+        let parent = path.parent().context("확장 파일 부모 경로 없음")?;
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("확장 폴더 생성 실패: {}", parent.display()))?;
+        std::fs::write(&path, bytes)
+            .with_context(|| format!("확장 파일 쓰기 실패: {}", path.display()))?;
+    }
+    Ok(dir)
+}
+
+/// native host 매니페스트를 놓을 자리와, 그 자리를 읽는 브라우저 이름(진단 문구용).
+/// **`install`(쓰기)과 `doctor`(확인)가 공유한다** — 경로를 두 군데 적으면 "등록했는데
+/// doctor는 없다고 한다"가 생긴다.
+///
+/// **왜 목록인가**: Windows는 매니페스트를 한 곳에 두고 레지스트리 항목이 그것을 가리키므로
+/// 파일은 하나다. unix에는 그 간접층이 없어 **브라우저가 자기 디렉토리를 직접 훑는다** — 같은
+/// 내용을 브라우저 수만큼 놓는 것이 곧 등록이다. 아직 설치되지 않은 브라우저 자리에도 미리
+/// 써둔다(Windows가 두 하이브를 무조건 등록하는 것과 같다 — 나중에 깔아도 그대로 동작한다).
 #[cfg(target_os = "windows")]
-pub fn manifest_path() -> Option<std::path::PathBuf> {
-    let local = std::env::var("LOCALAPPDATA").ok()?;
-    Some(std::path::PathBuf::from(format!("{local}\\inno-creed")).join(format!("{HOST_NAME}.json")))
+pub fn manifest_targets() -> Vec<(&'static str, PathBuf)> {
+    let Ok(local) = std::env::var("LOCALAPPDATA") else {
+        return Vec::new();
+    };
+    vec![(
+        "Chrome·Edge 공용",
+        PathBuf::from(format!("{local}\\inno-creed")).join(format!("{HOST_NAME}.json")),
+    )]
 }
 
 #[cfg(not(target_os = "windows"))]
-pub fn manifest_path() -> Option<std::path::PathBuf> {
-    None
+pub fn manifest_targets() -> Vec<(&'static str, PathBuf)> {
+    let Ok(home) = std::env::var("HOME") else {
+        return Vec::new();
+    };
+    let home = PathBuf::from(home);
+    // macOS는 **Chrome만** 본다. Edge는 지원 대상이 아니다 — 깔지도 않은 맥에
+    // `~/Library/Application Support/Microsoft Edge/`가 root 소유로 남아 있어(다른
+    // 설치 프로그램이 만들어 둔 잔재) 쓰기가 거부되는 사례를 실제로 만났다. 쓰지도 않을
+    // 브라우저 자리 때문에 매 기동 경고가 뜨는 것이 얻는 것보다 나쁘다.
+    #[cfg(target_os = "macos")]
+    let dirs = [("Chrome", "Library/Application Support/Google/Chrome")];
+    #[cfg(not(target_os = "macos"))]
+    let dirs = [
+        ("Chrome", ".config/google-chrome"),
+        ("Edge", ".config/microsoft-edge"),
+    ];
+    dirs.iter()
+        .map(|(browser, dir)| {
+            (
+                *browser,
+                home.join(dir)
+                    .join("NativeMessagingHosts")
+                    .join(format!("{HOST_NAME}.json")),
+            )
+        })
+        .collect()
 }
 
-#[cfg(target_os = "windows")]
-pub fn install(extension_id: &str) -> Result<()> {
+/// 매니페스트 내용. `path`에 **지금 실행 중인 이 파일의 절대 경로**를 박으므로, 바이너리를
+/// 옮기거나 지우면 등록이 조용히 끊긴다(브라우저는 스폰 실패를 확장 콘솔에만 남긴다) —
+/// 그래서 `ensure_installed`가 기동마다 다시 맞춘다.
+fn manifest_json(extension_id: &str) -> Result<Value> {
     let exe = std::env::current_exe().context("실행파일 경로 취득 실패")?;
-    let manifest_path = manifest_path().context("LOCALAPPDATA 없음")?;
-    let manifest_dir = manifest_path.parent().context("매니페스트 부모 경로 없음")?;
-    std::fs::create_dir_all(manifest_dir)?;
-
-    let manifest = json!({
+    Ok(json!({
         "name": HOST_NAME,
         "description": "inno-creed 크레덴셜 브릿지 native messaging host",
         "path": exe.to_string_lossy(),
         "type": "stdio",
         "allowed_origins": [format!("chrome-extension://{extension_id}/")],
-    });
-    std::fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)
-        .with_context(|| format!("매니페스트 쓰기 실패: {}", manifest_path.display()))?;
+    }))
+}
+
+fn write_manifest(path: &std::path::Path, manifest: &Value) -> Result<()> {
+    let dir = path.parent().context("매니페스트 부모 경로 없음")?;
+    std::fs::create_dir_all(dir)
+        .with_context(|| format!("매니페스트 디렉토리 생성 실패: {}", dir.display()))?;
+    std::fs::write(path, serde_json::to_vec_pretty(manifest)?)
+        .with_context(|| format!("매니페스트 쓰기 실패: {}", path.display()))
+}
+
+/// 등록 다음에 사람이 해야 하는 일. OS와 무관하게 같다.
+const LOAD_HINT: &str = "[inno-creed] 등록 완료. Chrome/Edge에서 확장 프로그램을 로드하면(chrome://extensions →\n\
+                         개발자 모드 → 압축해제된 확장 프로그램 로드 → extension/ 폴더) 로그인 즉시 크레덴셜이\n\
+                         자동으로 전달됩니다.";
+
+/// 서버가 뜰 때마다 등록을 **지금 이 실행 파일에 맞춰 놓는다**(멱등).
+///
+/// 등록을 사람이 기억해야 하는 별도 단계로 두면 반드시 빠진다 — 확장만 로드하고 등록을
+/// 안 하면 브릿지가 **에러 없이 조용히** 안 붙어서 증상만으로는 원인을 못 찾는다. MCP
+/// 클라이언트가 실행하는 경로가 곧 브라우저가 스폰해야 할 경로이므로, 여기서 쓰는 값이
+/// 사람이 손으로 등록하는 것보다 정확하다(다른 사본에 대고 등록하는 실수가 없다).
+///
+/// 내용이 이미 같으면 아무것도 하지 않는다. 한 자리라도 어긋나 있으면 다시 등록한다 —
+/// 못 쓰는 자리(아래 `install` 주석의 root 소유 디렉토리 등)가 있으면 기동마다 다시
+/// 시도하게 되는데, **그게 낫다**: 사용자가 나중에 그 브라우저를 깔거나 권한을 고치면
+/// 그 다음 기동에서 스스로 붙는다.
+pub fn ensure_installed() -> Result<()> {
+    let targets = manifest_targets();
+    if targets.is_empty() {
+        bail!("native host 매니페스트를 놓을 자리를 정할 수 없습니다");
+    }
+    let want = serde_json::to_vec_pretty(&manifest_json(DEFAULT_EXTENSION_ID)?)?;
+    if targets
+        .iter()
+        .all(|(_, p)| std::fs::read(p).is_ok_and(|cur| cur == want))
+    {
+        return Ok(());
+    }
+    install(DEFAULT_EXTENSION_ID)
+}
+
+/// Native Messaging 호스트를 등록한다 — 매니페스트 JSON을 쓰고 Chrome/Edge 레지스트리
+/// 하이브 둘 다에 걸어준다(두 브라우저가 각자 다른 하이브를 본다). `reg.exe`를 쓰는 건
+/// Windows에 항상 있는 도구라 레지스트리 FFI를 새로 안 만들어도 되기 때문 — 인자를
+/// `Command::args`로 넘기므로(셸을 안 거침) 경로에 공백이 있어도 별도 이스케이프가
+/// 필요 없다.
+#[cfg(target_os = "windows")]
+pub fn install(extension_id: &str) -> Result<()> {
+    let (_, manifest_path) = manifest_targets().into_iter().next().context("LOCALAPPDATA 없음")?;
+    write_manifest(&manifest_path, &manifest_json(extension_id)?)?;
     eprintln!("[inno-creed] native host 매니페스트 작성: {}", manifest_path.display());
 
     for (browser, hive) in [
@@ -155,15 +278,38 @@ pub fn install(extension_id: &str) -> Result<()> {
         }
         eprintln!("[inno-creed] {browser} native host 등록 완료: {key}");
     }
-    eprintln!(
-        "[inno-creed] 등록 완료. Chrome/Edge에서 확장 프로그램을 로드하면(chrome://extensions →\n\
-         개발자 모드 → 압축해제된 확장 프로그램 로드 → extension/ 폴더) 로그인 즉시 크레덴셜이\n\
-         자동으로 전달됩니다."
-    );
+    eprintln!("{LOAD_HINT}");
     Ok(())
 }
 
+/// unix판 등록 — 브라우저마다 자기 디렉토리를 훑으므로 레지스트리 없이 **파일만** 놓으면 된다.
+///
+/// ⚠️ **한 자리가 실패해도 나머지는 계속 쓴다.** 안 쓰는 브라우저의 디렉토리가 우리가 손댈 수
+/// 없는 상태로 남아 있는 일이 실제로 있다 — 이 저장소를 개발한 맥에서 Edge를 깔지도 않았는데
+/// `~/Library/Application Support/Microsoft Edge/`가 **root 소유**로 남아 있어 쓰기가
+/// `Permission denied`였다. 처음엔 첫 실패에서 멈추게 짰는데, 그러면 정작 쓰는 브라우저인
+/// Chrome 등록까지 통째로 실패로 끝난다. 하나도 못 썼을 때만 에러다.
 #[cfg(not(target_os = "windows"))]
-pub fn install(_extension_id: &str) -> Result<()> {
-    bail!("익스텐션 native host 등록은 현재 Windows만 지원합니다");
+pub fn install(extension_id: &str) -> Result<()> {
+    let manifest = manifest_json(extension_id)?;
+    let targets = manifest_targets();
+    if targets.is_empty() {
+        bail!("HOME이 없어 native host 매니페스트를 놓을 자리를 정할 수 없습니다");
+    }
+    let mut wrote = 0usize;
+    for (browser, path) in &targets {
+        match write_manifest(path, &manifest) {
+            Ok(()) => {
+                wrote += 1;
+                eprintln!("[inno-creed] {browser} native host 등록 완료: {}", path.display());
+            }
+            // 그 브라우저를 안 쓰는 사용자에겐 아무 문제가 아니다 — 경고로만 남긴다.
+            Err(e) => eprintln!("[inno-creed] ⚠️ {browser} native host 등록 건너뜀: {e:#}"),
+        }
+    }
+    if wrote == 0 {
+        bail!("어느 브라우저에도 native host를 등록하지 못했습니다(위 사유 참고)");
+    }
+    eprintln!("{LOAD_HINT}");
+    Ok(())
 }

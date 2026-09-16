@@ -26,7 +26,7 @@ inno-creed (Rust MCP 서버, 헤드리스)
  │           API 래퍼 + 파생 조회 + **소유권 가드 · read-back 검증**(`*_and_verify`)
  └─ mcp/     rmcp 서버(stdio)
     ├─ mod.rs   서버 골격: Amaranth · 라우터 합성(all_tools) · ensure_session · 에러 변환 · instructions
-    ├─ tools/   도구 57개 — 도메인 12개(resource·calendar·mail·board·approval{,_line,_submit,_meta}·org·person_group·attendance·search)
+    ├─ tools/   도구 58개 — 도메인 12개(resource·calendar·mail·board·approval{,_line,_submit,_meta}·org·person_group·attendance·search)
     └─ args/    도구 인자 스키마 — 도메인 9개. ⚠️ doc comment가 그대로 LLM 프롬프트가 된다
 ```
 
@@ -56,8 +56,17 @@ inno-creed (Rust MCP 서버, 헤드리스)
 | `BIZCUBE_AT` | `authToken` | URL 디코드(`%7C`→`|`) |
 | `BIZCUBE_HK` | `signKey` | 그대로 |
 
-`from_browser()`의 순서: 수동 지정(env) → **익스텐션 캐시**(권장) → Chrome → Edge(Windows만) →
+`from_browser()`의 순서: 수동 지정(env) → **익스텐션 캐시**(정식) → Chrome → Edge(Windows만) →
 Firefox(**Windows에서는 시도 안 함** — 아래 참고). 첫 성공에서 멈춘다.
+
+> **가이드는 확장을 전 OS 필수로 안내하지만, 코드는 확장 없이도 동작한다.** 아래 쿠키 DB 직접
+> 읽기 경로가 살아 있고 macOS·Linux에서는 실제로 성공하는 환경이 많다. 그럼에도 필수로 안내하는
+> 이유는 **성공 여부가 환경에 달려 보장되지 않기** 때문이다 — 세션 쿠키가 디스크에 없거나(Chrome
+> "중단한 위치에서 계속하기" 꺼짐), 키체인 접근을 거부했거나, `secret-tool`이 없거나 키링이 잠겨
+> 있으면 그대로 실패한다. "되는 사람은 되고 안 되는 사람은 안 되는" 경로를 정식 절차로 적으면
+> 실패한 쪽이 원인을 못 찾는다. 그래서 문서는 하나의 경로만 말하고, 직접 읽기는 확장이 아직 없을
+> 때를 받아주는 폴백으로 남긴다(`creds::try_extension_cache`가 캐시 없음을 전 OS에서 `Failed`로
+> 보고하는 것도 같은 기준이다).
 
 ### 익스텐션 캐시(Chrome/Edge, `extension/` + `src/native_host.rs`)
 
@@ -74,10 +83,27 @@ Firefox(**Windows에서는 시도 안 함** — 아래 참고). 첫 성공에서
   플래그가 아님 — `main.rs`가 이 접두도 native-host 모드로 인식)를 호출 → 로컬 캐시 파일
   (`extension_cache_path()`, OS별 표준 로컬 데이터 디렉토리, `INNO_CREED_EXTENSION_CACHE`로
   오버라이드)에 씀 → `from_extension_cache()`가 매 취득마다 그 파일을 읽음.
-- 등록: `inno-creed --install-extension-host [확장ID]`가 native messaging host 매니페스트를
-  쓰고 Chrome/Edge 레지스트리 하이브 둘 다(`HKCU\Software\{Google\Chrome,Microsoft\Edge}\NativeMessagingHosts`)
-  에 등록(Windows만 구현). 확장 ID는 `extension/manifest.json`의 `"key"`(고정 공개키)로
-  결정되므로 unpacked로 재로드해도 안 바뀐다.
+- 등록: **MCP 서버가 뜰 때마다 `native_host::ensure_installed()`가 자동으로 맞춘다**(내용이 같으면
+  쓰지 않는다). 사람이 기억해야 하는 단계로 두면 빠지고, 빠지면 브릿지가 에러 없이 조용히 안 붙는다.
+  MCP 클라이언트가 실행하는 경로가 곧 브라우저가 스폰할 경로이므로 손으로 등록하는 것보다 정확하고,
+  바이너리를 옮겨도 다음 기동에 스스로 낫는다. `inno-creed --install-extension-host [확장ID]`는 수동
+  재등록·커스텀 확장 ID용으로 남아 있다.
+  - Windows: 매니페스트 1개(`%LOCALAPPDATA%\inno-creed\`) + Chrome/Edge 레지스트리 하이브 둘
+    (`HKCU\Software\{Google\Chrome,Microsoft\Edge}\NativeMessagingHosts`)이 그것을 가리킨다.
+  - unix: 레지스트리라는 간접층이 없어 **브라우저가 자기 디렉토리를 직접 훑는다** — 같은 매니페스트를
+    브라우저마다 놓는 것이 곧 등록이다. macOS `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/`,
+    Linux `~/.config/{google-chrome,microsoft-edge}/NativeMessagingHosts/`. **macOS는 Edge를 지원하지
+    않는다** — Edge를 깔지도 않은 맥에 root 소유의 `Microsoft Edge/` 잔재가 남아 쓰기가 거부되는 사례를
+    만났고, 쓰지도 않을 자리 때문에 기동마다 경고를 내는 것이 얻는 것보다 나쁘다.
+  - 한 자리가 실패해도 나머지는 계속 쓴다(하나도 못 썼을 때만 에러). 첫 실패에서 멈추면 안 쓰는
+    브라우저의 디렉토리 하나 때문에 정작 쓰는 브라우저 등록까지 날아간다.
+  확장 ID는 `extension/manifest.json`의 `"key"`(고정 공개키)로 결정되므로 unpacked로 재로드해도 안 바뀐다.
+- 확장 파일 배포: 저장소 `extension/`의 런타임 파일 6개를 **바이너리에 `include_bytes!`로 내장**하고
+  `inno-creed extension [폴더]`가 꺼내놓는다(기본 위치는 캐시와 같은 데이터 디렉토리). 설치 경로 셋
+  중 인스톨러 둘은 `payload/extension/`으로 파일이 따라가지만 맨 바이너리 경로만 릴리즈 zip을 따로
+  받아야 했는데, 그 한 단계 때문에 확장 설치가 "설치 절차"가 아니라 별도 숙제가 됐다. installer가
+  실행 파일을 내장하지 않는 원칙과는 다른 이야기다 — 거기서 피하는 것은 드로퍼 휴리스틱이고 여기
+  담기는 것은 json·js·png다.
 - 로그아웃(쿠키 삭제) 감지 시 캐시 파일도 지운다(익스텐션이 `{clear:true}` 메시지 전송) —
   안 지우면 만료된 값으로 계속 "성공"해서 나중에 API 401로 더 헷갈리는 실패가 난다.
 

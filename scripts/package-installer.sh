@@ -5,9 +5,10 @@
 #   cargo build --release --bin inno-creed
 #   cargo build --release -p installer
 #
-# macOS/Linux는 확장 프로그램 단계 자체가 없다(브라우저 쿠키를 직접 읽는
-# 경로라서 native messaging host가 필요 없음 — docs/INSTALL.md 참고).
-# 그래서 payload/에 extension/ 폴더를 넣지 않는다.
+# 확장 프로그램은 **전 OS 공통 정식 경로**다(docs/INSTALL.md 참고). macOS/Linux도
+# 쿠키 직접 읽기는 세션 쿠키·키체인/키링 권한 때문에 되는지가 환경에 달려 있어
+# 보장되지 않는다. 그래서 .ps1과 똑같이 payload/extension/을 담는다 — 여기서 빠지면
+# installer가 확장 안내 화면 자체를 건너뛴다(그 화면은 이 폴더 유무로 켜진다).
 #
 # exe 안에 exe를 내장하지 않는다 — installer와 payload/를 zip 안에서
 # 나란히 두고, installer는 실행 시 자기 옆에서 payload를 찾는다.
@@ -42,11 +43,14 @@ mkdir -p "$ROOT/.claude-workspace"
 STAGE="$(mktemp -d "$ROOT/.claude-workspace/installer-stage.XXXXXX")"
 trap 'rm -rf "$STAGE"' EXIT
 
-mkdir -p "$STAGE/payload"
+mkdir -p "$STAGE/payload/extension/icons"
 cp target/release/installer "$STAGE/installer"
 cp target/release/installer-cli "$STAGE/installer-cli"
 cp target/release/inno-creed "$STAGE/payload/inno-creed"
 chmod +x "$STAGE/installer" "$STAGE/installer-cli" "$STAGE/payload/inno-creed"
+# icons/를 빠뜨리면 manifest.json이 선언한 파일이 없어 Chrome이 로드를 **거부**한다.
+cp extension/manifest.json extension/background.js "$STAGE/payload/extension/"
+cp extension/icons/* "$STAGE/payload/extension/icons/"
 
 OUT_DIR="${1:-dist}"
 mkdir -p "$OUT_DIR"

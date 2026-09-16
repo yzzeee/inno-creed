@@ -1,4 +1,4 @@
-//! 실제 설치 동작 — payload 복사, config-kit으로 등록, (Windows만) 확장 브릿지 연결.
+//! 실제 설치 동작 — payload 복사, config-kit으로 등록, 확장 브릿지 연결.
 //!
 //! 어디서 payload를 찾는지는 이 모듈이 몰라도 된다(그건 `payload` 모듈의 일) — 여기는
 //! 이미 찾은 구체적인 경로만 받는다. 그래야 가짜 경로를 넣어 로직만 따로 테스트할 수 있다.
@@ -60,11 +60,10 @@ pub fn perform_install(
         }
         copy_dir_all(src_ext, &dest_ext)?;
         // native_host.rs가 이미 구현한 등록 절차를 그대로 재사용 — installer가
-        // 레지스트리/매니페스트 작성 로직을 다시 구현하지 않는다. (Windows 전용 동작)
-        #[cfg(target_os = "windows")]
-        {
-            let _ = no_console_window(Command::new(&dest_bin).arg("--install-extension-host")).status();
-        }
+        // 레지스트리/매니페스트 작성 로직을 다시 구현하지 않는다. 전 OS 공통이다.
+        // 실패해도 설치를 막지 않는다: 설치된 본체가 기동할 때 스스로 다시 등록하고
+        // (`native_host::ensure_installed`), 그래도 안 되면 `doctor`가 사유를 보여준다.
+        let _ = no_console_window(Command::new(&dest_bin).arg("--install-extension-host")).status();
         extension_dir = Some(dest_ext);
     }
 

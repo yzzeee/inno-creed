@@ -118,14 +118,20 @@ fn report_extension_bridge() {
         Ok(p) => println!("  캐시: {} (없음 — 확장 미설치이거나 아직 로그인 전)", p.display()),
         Err(e) => println!("  캐시: 경로를 정할 수 없음 ({e:#})"),
     }
-    match crate::native_host::manifest_path() {
-        Some(p) if p.exists() => println!("  native host 등록: {} (있음)", p.display()),
-        Some(p) => println!(
-            "  native host 등록: {} (없음 — `inno-creed --install-extension-host`를 실행하세요)",
-            p.display()
-        ),
-        // Windows 외에는 등록 자체가 없다. "없음"으로 찍으면 고칠 것이 있는 것처럼 보인다.
-        None => println!("  native host 등록: 이 OS에서는 사용하지 않습니다(쿠키를 직접 읽습니다)"),
+    let targets = crate::native_host::manifest_targets();
+    if targets.is_empty() {
+        println!("  native host 등록: 놓을 자리를 정할 수 없음(HOME·LOCALAPPDATA 둘 다 없음)");
+        return;
+    }
+    // 등록은 MCP 서버가 뜰 때마다 스스로 맞춘다(`native_host::ensure_installed`). 그래서 여기
+    // "없음"은 **서버가 한 번도 안 떴거나 그 쓰기가 실패했다**는 뜻이지, 사용자가 잊은 게 아니다.
+    for (browser, p) in targets {
+        let state = if p.exists() {
+            "있음"
+        } else {
+            "없음 — 그 브라우저를 안 쓰면 문제없습니다. 쓰는데도 없으면 `inno-creed --install-extension-host`의 경고를 보세요"
+        };
+        println!("  native host 등록({browser}): {} ({state})", p.display());
     }
 }
 

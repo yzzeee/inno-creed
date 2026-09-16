@@ -317,26 +317,22 @@ pub(crate) fn extension_cache_path() -> Result<PathBuf> {
 
 /// 익스텐션이 떨어뜨려둔 캐시 파일에서 크레덴셜 취득.
 ///
-/// **캐시가 없는 것의 무게는 플랫폼마다 다르다.** Windows에서는 이것이 권장 경로라 없으면
-/// 그 자체가 고쳐야 할 문제지만(→ `Failed`), macOS·Linux에서는 쿠키 DB 직접 읽기가 정상
-/// 동작하므로 익스텐션을 안 깔아도 아무 문제가 없다(→ `Absent`). 후자를 `Failed`로 올리면
-/// 멀쩡한 환경의 최종 에러에 "고칠 것"이 하나 더 있는 것처럼 보인다.
+/// **캐시가 없으면 전 OS에서 `Failed`다.** 확장 브릿지가 정식 설치 경로이기 때문이다.
+/// macOS·Linux는 쿠키 DB 직접 읽기(아래 소스들)로도 **동작할 수는 있지만**, 세션 쿠키가
+/// 디스크에 없거나(Chrome "중단한 위치에서 계속하기" 꺼짐) 키체인·키링 권한이 막히면
+/// 그대로 실패한다 — 되는지 여부가 사용자 환경에 달려 **보장되지 않는다**. 그래서 가이드는
+/// 전 OS 공통으로 확장을 필수로 안내하고, 진단도 그 기준에 맞춘다. 직접 읽기는 확장이
+/// 아직 없을 때를 받아주는 폴백으로 남긴다.
 fn try_extension_cache() -> std::result::Result<Creds, SourceFail> {
     let path = extension_cache_path().map_err(failed_from)?;
     let txt = match std::fs::read_to_string(&path) {
         Ok(s) => s,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            #[cfg(target_os = "windows")]
             return Err(SourceFail::failed(format!(
-                "익스텐션 캐시 없음: {} — Windows에서는 이 경로가 권장 방식입니다. \
-                 `inno-creed --install-extension-host` 실행 후 chrome://extensions(또는 edge://extensions)에서 \
-                 개발자 모드를 켜고 extension/ 폴더를 \"압축해제된 확장 프로그램 로드\"로 올린 다음, \
-                 https://gw.innogrid.com 에 로그인하세요(로그인 즉시 자동 전달).",
-                path.display()
-            )));
-            #[cfg(not(target_os = "windows"))]
-            return Err(SourceFail::absent(format!(
-                "익스텐션 미설치(캐시 없음: {}) — 이 OS에서는 쿠키를 직접 읽을 수 있어 필요하지 않습니다.",
+                "익스텐션 캐시 없음: {} — 확장 브릿지가 정식 경로입니다. \
+                 chrome://extensions(또는 edge://extensions)에서 개발자 모드를 켜고 extension/ 폴더를 \
+                 \"압축해제된 확장 프로그램 로드\"로 올린 다음, https://gw.innogrid.com 에 \
+                 로그인하세요(로그인 즉시 자동 전달). native host 등록은 서버 기동 때 자동으로 됩니다.",
                 path.display()
             )));
         }

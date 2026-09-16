@@ -245,15 +245,14 @@ fn render_failure(reports: &[SourceReport]) -> String {
         ));
     }
     if actionable.is_empty() {
-        #[cfg(target_os = "windows")]
+        // 예전에는 여기서 OS를 갈라, 비-Windows에는 "브라우저로 로그인하세요"라고만 했다.
+        // 그 말을 들은 사용자는 확장 브릿지를 아예 시도하지 않은 채 직접 읽기만 되풀이했다
+        // (실제 사용자 보고). 확장이 전 OS 정식 경로가 된 지금은 한 가지로 안내한다.
         out.push_str(
-            "\n  ▸ 크레덴셜 소스가 하나도 없습니다. Chrome/Edge 확장 프로그램을 설치하세요 — \
-             `inno-creed --install-extension-host` 실행 후 chrome://extensions(또는 edge://extensions)에서 \
-             개발자 모드로 extension/ 폴더를 로드하고 https://gw.innogrid.com 에 로그인하면 됩니다.",
-        );
-        #[cfg(not(target_os = "windows"))]
-        out.push_str(
-            "\n  ▸ 크레덴셜 소스가 하나도 없습니다. Chrome 또는 Firefox로 https://gw.innogrid.com 에 로그인하세요.",
+            "\n  ▸ 크레덴셜 소스가 하나도 없습니다. **확장 프로그램을 브라우저에 올리세요**(전 OS 정식 경로) — \
+             chrome://extensions(또는 edge://extensions)에서 개발자 모드를 켜고 extension/ 폴더를 \
+             \"압축해제된 확장 프로그램 로드\"로 고른 뒤 https://gw.innogrid.com 에 로그인하면 됩니다. \
+             native host 등록은 서버가 뜰 때마다 스스로 맞춥니다.",
         );
     }
     out.push_str("\n\n무엇이 어디서 막혔는지는 `inno-creed doctor`가 한 화면으로 보여줍니다.");

@@ -50,12 +50,18 @@ pub async fn run() -> i32 {
     }
 
     match &d.creds {
-        Some(c) => println!(
-            "\n  → 사용 가능. authToken {}자 / signKey {}자. (값은 표시하지 않습니다)",
-            c.auth_token.len(),
-            c.sign_key.len()
-        ),
-        None => println!("\n  → 크레덴셜 없음. 서버는 기동하지만 도구 호출은 로그인 안내를 반환합니다."),
+        Some(c) => {
+            println!(
+                "\n  → 사용 가능. authToken {}자 / signKey {}자. (값은 표시하지 않습니다)",
+                c.auth_token.len(),
+                c.sign_key.len()
+            );
+            warn_if_direct_read(&d.reports);
+        }
+        None => {
+            println!("\n  → 크레덴셜 없음. 서버는 기동하지만 도구 호출은 로그인 안내를 반환합니다.");
+            print_next_steps();
+        }
     }
 
     // 환경변수와 파일을 같이 쓰면 환경변수가 이긴다 — 파일을 새로 저장해도 안 먹는 함정이라
@@ -112,10 +118,13 @@ pub async fn run() -> i32 {
 /// 확장만 로드하고 등록을 안 하면 확장 쪽에서 조용히 연결이 끊긴다. 한 줄로 뭉뚱그리면
 /// 둘 중 어디서 멈췄는지 알 수 없다.
 fn report_extension_bridge() {
-    println!("\n[익스텐션 브릿지] Chrome/Edge 확장 → native host → 캐시 파일");
+    println!("\n[익스텐션 브릿지] 확장 → native host → 캐시 파일 — **전 OS 공통 정식 경로**");
     match creds::extension_cache_path() {
         Ok(p) if p.exists() => println!("  캐시: {} (있음)", p.display()),
-        Ok(p) => println!("  캐시: {} (없음 — 확장 미설치이거나 아직 로그인 전)", p.display()),
+        Ok(p) => println!(
+            "  캐시: {} (없음 — 확장을 아직 브라우저에 올리지 않았거나, 올린 뒤 gw.innogrid.com에 로그인하지 않았습니다)",
+            p.display()
+        ),
         Err(e) => println!("  캐시: 경로를 정할 수 없음 ({e:#})"),
     }
     let targets = crate::native_host::manifest_targets();
@@ -133,6 +142,58 @@ fn report_extension_bridge() {
         };
         println!("  native host 등록({browser}): {} ({state})", p.display());
     }
+    // 등록 자리는 브라우저가 스스로 훑는 곳이라, 목록에 없는 브라우저는 매니페스트를 못 본다.
+    // 그 경우 확장은 올라가지만 브릿지는 **에러 없이 조용히** 안 붙는다 — 미리 말해 준다.
+    #[cfg(not(target_os = "windows"))]
+    println!(
+        "  (위 목록에 없는 브라우저 — Chromium·Brave·Vivaldi, snap/flatpak으로 깐 것 등 — 에는 등록되지 않습니다. \
+         그 브라우저를 쓴다면 브릿지가 조용히 안 붙습니다.)"
+    );
+}
+
+/// 브라우저 쿠키를 **직접 읽어** 성공한 경우의 경고.
+///
+/// 이 경로는 되기도 하고 안 되기도 한다 — 그런데 "지금 됐다"는 화면을 보면 사용자는 확장을
+/// 건너뛴다. 실제로 그렇게 미룬 사용자가 나중에 Claude Desktop에서 통째로 막혔다(호스트가
+/// 띄우는 프로세스는 권한이 달라 쿠키 DB를 못 연다). 그래서 성공했을 때도 말해 준다.
+fn warn_if_direct_read(reports: &[creds::SourceReport]) {
+    let Some(ok) = reports.iter().find(|r| r.outcome == Outcome::Ok) else {
+        return;
+    };
+    if !matches!(ok.source, "Chrome" | "Edge" | "Firefox") {
+        return;
+    }
+    println!(
+        "  ⚠️ 지금은 브라우저 쿠키를 직접 읽어 성공했지만, 이 경로는 **보장되지 않습니다** — \
+         Claude Desktop이 이 서버를 띄우면 권한이 달라 실패할 수 있고(macOS에서 실측), \
+         세션 쿠키가 디스크에 없거나 키체인·키링이 잠기면 그대로 막힙니다."
+    );
+    println!("     아래 [익스텐션 브릿지]를 지금 올려두세요 — 그게 정식 경로입니다.");
+}
+
+/// 크레덴셜이 하나도 없을 때 **다음에 할 일 하나**만 보여준다. 고를 수 있는 방법을 나열하면
+/// 사용자는 가장 쉬워 보이는 것(브라우저로 로그인만 다시 해보기)을 고르고 같은 자리를 맴돈다.
+fn print_next_steps() {
+    println!("\n  ▶ 지금 할 일 — 확장 프로그램을 브라우저에 올리세요 (전 OS 공통 정식 경로)");
+    println!("     1. chrome://extensions (Edge는 edge://extensions)를 열고 개발자 모드를 켭니다.");
+    match extension_folder_hint() {
+        Some(dir) => println!(
+            "     2. [압축해제된 확장 프로그램 로드]로 이 폴더를 고릅니다: {}",
+            dir.display()
+        ),
+        None => println!(
+            "     2. [압축해제된 확장 프로그램 로드]로 확장 폴더를 고릅니다 — 인스톨러로 설치했다면 설치 폴더 안의 \
+             extension/, 맨 바이너리로 설치했다면 릴리즈의 inno-creed-extension.zip을 받아 푼 폴더입니다."
+        ),
+    }
+    println!("     3. https://gw.innogrid.com 에 로그인합니다 — 로그인 즉시 자동으로 전달됩니다.");
+    println!("     (native host 등록은 서버가 뜰 때마다 스스로 맞춥니다. 사람이 할 일은 위 세 가지뿐입니다.)");
+}
+
+/// 인스톨러는 확장 파일을 **본체 옆**에 둔다. 그 자리를 알면 사용자가 폴더를 찾아 헤매지 않는다.
+fn extension_folder_hint() -> Option<PathBuf> {
+    let dir = std::env::current_exe().ok()?.parent()?.join("extension");
+    dir.is_dir().then_some(dir)
 }
 
 /// 세션 조회 1회로 크레덴셜이 실제로 통하는지 본다. 부작용 없는 조회다.

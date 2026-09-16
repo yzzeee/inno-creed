@@ -96,12 +96,12 @@ https://github.com/zilhak/inno-creed
 - **MCP 클라이언트** — [Claude Code](https://claude.com/claude-code)(권장) 또는 stdio MCP를 지원하는 클라이언트. 이게 없으면 바이너리를 실행해도 아무 일도 안 합니다(입력을 기다리다 종료).
 - **로그인된 브라우저** — Chrome/Edge로 `https://gw.innogrid.com` 에 로그인된 **데스크톱** 환경. (헤드리스 서버·외부인 사용 불가)
 - **이노그리드 사내 계정.**
-- **Chrome/Edge 확장 프로그램 — 필수입니다(전 OS).** [4번](#4-크레덴셜-연결--chromeedge-확장-프로그램-필수) 참고. 인스톨러를 쓰면 설치 과정에 포함되고, 맨 바이너리로 설치했다면 `inno-creed-extension.zip`을 따로 받아 로드합니다. 확장 없이 쿠키 DB를 직접 읽는 폴백이 있긴 하지만 **환경에 따라 되기도 안 되기도 해서 보장되지 않습니다**(Windows는 사실상 항상 실패).
+- **Chrome/Edge 확장 프로그램 — 필수입니다(전 OS).** [4번](#4-크레덴셜-연결--chromeedge-확장-프로그램-필수) 참고. 인스톨러를 쓰면 설치 과정에 포함되고, 맨 바이너리로 설치했다면 `inno-creed-extension.zip`을 따로 받아 로드합니다. **확장 없이는 설치가 끝난 것이 아닙니다** — 확장을 올리고 아마란스에 로그인해야 크레덴셜이 들어옵니다.
 
 지원 바이너리: **macOS(Apple Silicon)**, **Linux x86_64 / aarch64**, **Windows x86_64 / ARM64**.
 > Intel 맥용 바이너리는 제공하지 않습니다(필요하면 [소스 빌드](#부록-소스-빌드)).
 
-> **(Linux, 폴백을 쓸 때만) `libsecret-tools`가 필요합니다.** 확장 프로그램을 쓰면 필요 없습니다. Chrome 쿠키를 GNOME Keyring/KWallet에서
+> **(Linux) `libsecret-tools`는 문제 해결용입니다.** 정식 경로인 확장 프로그램에는 필요 없습니다. Chrome 쿠키를 GNOME Keyring/KWallet에서
 > 자동 복호화하려면 `secret-tool`이 있어야 합니다. 없으면 미리 설치하세요:
 > `sudo apt install libsecret-tools`(Debian/Ubuntu 계열, 데스크톱 세션에서 키링이
 > 잠금 해제돼 있어야 합니다). 자세한 내용은 [6. 크레덴셜이 안 잡힐 때](#6-크레덴셜이-안-잡힐-때-문제-해결) 참고.
@@ -210,7 +210,7 @@ claude mcp add inno-creed --scope user -- /절대경로/inno-creed          # Wi
 `gw.innogrid.com`의 로그인 쿠키(`BIZCUBE_AT`/`BIZCUBE_HK`)는 **세션 쿠키**라 브라우저가 켜져 있는 동안만 존재합니다. 확장 프로그램은 브라우저가 공식으로 열어준 `cookies` API로 그 값을 바로 받아 넘기는 경로이고, **모든 OS에서 이것이 정식 설치 단계입니다.**
 
 - **Windows**는 여기에 더해 실행 중 쿠키 파일 배타 잠금과 `v20` app-bound 암호화까지 겹쳐, 쿠키 DB 직접 읽기가 구조적으로 거의 항상 실패합니다.
-- **macOS·Linux**는 직접 읽기가 **되기도 합니다.** 다만 되는지가 환경에 달려 있습니다 — Chrome **"중단한 위치에서 계속하기"**가 꺼져 있으면 세션 쿠키가 디스크에 아예 없고, macOS는 키체인 접근을 거부하면, Linux는 `secret-tool`이 없거나 키링이 잠겨 있으면 그대로 실패합니다. 보장되는 경로가 아니라서 가이드는 전 OS 공통으로 확장을 필수로 안내합니다. (직접 읽기는 확장이 아직 없을 때를 받아주는 [폴백](#6-크레덴셜이-안-잡힐-때-문제-해결)으로 남아 있습니다.)
+- **macOS·Linux도 확장이 필요합니다.** MCP 클라이언트가 이 서버를 자식 프로세스로 띄우면 권한이 사람이 연 터미널과 달라, macOS에서는 Chrome 쿠키 DB 열기가 `Operation not permitted`로 막히는 것을 실측했습니다. 터미널에서 `doctor`가 통과하는 것과 Claude Desktop 안에서 되는 것은 별개입니다.
 - 그리고 쿠키 DB 직접 읽기는 [DBSC](#dbsc란--쿠키-db-직접-읽기가-왜-점점-막히나) 때문에 갈수록 막히는 방향입니다. 확장 경로는 DBSC와 무관합니다.
 
 ### 인스톨러로 설치했다면 — 이미 끝났습니다

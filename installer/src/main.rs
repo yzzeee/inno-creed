@@ -7,30 +7,59 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod app;
-mod cli;
 mod fatal;
-mod install;
-mod payload;
+use installer::{install, payload};
 #[cfg(target_os = "windows")]
-mod registry;
+use installer::registry;
 
 fn main() {
-    // GPU 드라이버와 GUI 오류 대화상자에 진입하기 전에 터미널 모드를 분기한다.
-    if std::env::args().any(|a| a == "--cli") {
-        std::process::exit(cli::main());
-    }
     // 무엇보다 먼저. 이 아래에서 벌어지는 어떤 실패도 창으로 보이게 하는 장치다.
     fatal::install_panic_hook();
+
+    // 기존 명령도 콘솔 전용 실행 파일로 전달한다. Windows에서는 새 콘솔을 열어
+    // 이미 입력을 재개한 PowerShell과 같은 입력 버퍼를 공유하지 않는다.
+    if std::env::args_os().any(|a| a == "--cli") {
+        match launch_cli() {
+            Ok(code) => std::process::exit(code),
+            Err(error) => {
+                fatal::report(&format!("터미널 설치 프로그램을 실행하지 못했습니다: {error}\ninstaller-cli 실행 파일이 같은 폴더에 있는지 확인해주세요."));
+                std::process::exit(1);
+            }
+        }
+    }
 
     if let Err(err) = run() {
         fatal::report(&format!(
             "설치 프로그램 창을 띄우지 못했습니다.\n\n\
              내용: {err}\n\
              (원문: {err:?})\n\n\
-             그래픽 없이 설치하려면 터미널에서 installer --cli를 실행하세요.\n\
-             PowerShell: Start-Process .\\installer.exe -ArgumentList '--cli' -NoNewWindow -Wait"
+             그래픽 없이 설치하려면 같은 폴더의 installer-cli를 실행하세요.\n\
+             Windows에서는 installer-cli.exe를 더블클릭하면 됩니다."
         ));
         std::process::exit(1);
+    }
+}
+
+fn launch_cli() -> std::io::Result<i32> {
+    let cli = std::env::current_exe()?.with_file_name(if cfg!(windows) {
+        "installer-cli.exe"
+    } else {
+        "installer-cli"
+    });
+    let mut command = std::process::Command::new(cli);
+    command.args(std::env::args_os().skip(1).filter(|a| a != "--cli"));
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0000_0010); // CREATE_NEW_CONSOLE
+        // 별도 콘솔이 결과를 보존한다. 설치 폴더 안의 GUI에서 제거를 시작한
+        // 경우에도 부모 exe가 파일 잠금을 계속 잡고 있지 않도록 바로 종료한다.
+        command.spawn()?;
+        Ok(0)
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(command.status()?.code().unwrap_or(1))
     }
 }
 

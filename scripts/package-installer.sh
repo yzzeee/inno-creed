@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# inno-creed 초보자용 GUI 인스톨러 배포 zip을 만든다 (macOS / Linux).
+# inno-creed GUI·CLI 인스톨러 배포 zip을 만든다 (macOS / Linux).
 #
 # 전제: inno-creed 본체와 installer가 이미 release로 빌드돼 있어야 한다.
 #   cargo build --release --bin inno-creed
@@ -31,20 +31,22 @@ case "$OS" in
   *) echo "지원하지 않는 OS: $OS" >&2; exit 1 ;;
 esac
 
-for f in target/release/installer target/release/inno-creed; do
+for f in target/release/installer target/release/installer-cli target/release/inno-creed; do
   if [ ! -f "$f" ]; then
     echo "$f 가 없습니다. 먼저 'cargo build --release --bin inno-creed' 와 'cargo build --release -p installer' 를 실행하세요." >&2
     exit 1
   fi
 done
 
-STAGE="$(mktemp -d)"
+mkdir -p "$ROOT/.claude-workspace"
+STAGE="$(mktemp -d "$ROOT/.claude-workspace/installer-stage.XXXXXX")"
 trap 'rm -rf "$STAGE"' EXIT
 
 mkdir -p "$STAGE/payload"
 cp target/release/installer "$STAGE/installer"
+cp target/release/installer-cli "$STAGE/installer-cli"
 cp target/release/inno-creed "$STAGE/payload/inno-creed"
-chmod +x "$STAGE/installer" "$STAGE/payload/inno-creed"
+chmod +x "$STAGE/installer" "$STAGE/installer-cli" "$STAGE/payload/inno-creed"
 
 OUT_DIR="${1:-dist}"
 mkdir -p "$OUT_DIR"

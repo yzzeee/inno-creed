@@ -1,4 +1,4 @@
-# inno-creed 초보자용 GUI 인스톨러 배포 zip을 만든다 (Windows).
+# inno-creed GUI·CLI 인스톨러 배포 zip을 만든다 (Windows).
 #
 # 전제: inno-creed 본체와 installer가 이미 release로 빌드돼 있어야 한다.
 #   cargo build --release --bin inno-creed
@@ -21,7 +21,8 @@ Push-Location $root
 try {
     $releaseDir = if ($Target) { "target/$Target/release" } else { "target/release" }
     $machines = @()
-    foreach ($f in @("$releaseDir/installer.exe", "$releaseDir/inno-creed.exe")) {
+    $subsystems = @()
+    foreach ($f in @("$releaseDir/installer.exe", "$releaseDir/installer-cli.exe", "$releaseDir/inno-creed.exe")) {
         if (-not (Test-Path $f)) {
             throw "$f 가 없습니다. 먼저 'cargo build --release --bin inno-creed' 와 'cargo build --release -p installer' 를 실행하세요."
         }
@@ -34,10 +35,15 @@ try {
             $reader.BaseStream.Position = $offset
             if ($reader.ReadUInt32() -ne 0x4550) { throw "$f has no PE signature." }
             $machines += $reader.ReadUInt16()
+            $reader.BaseStream.Position = $offset + 24 + 68
+            $subsystems += $reader.ReadUInt16()
         }
         finally { $reader.Dispose() }
     }
-    if ($machines[0] -ne $machines[1]) { throw 'installer and payload architectures differ.' }
+    if (@($machines | Select-Object -Unique).Count -ne 1) { throw 'installers and payload architectures differ.' }
+    if ($subsystems[0] -ne 2 -or $subsystems[1] -ne 3) {
+        throw 'installer.exe must use GUI subsystem and installer-cli.exe must use console subsystem.'
+    }
     $arch = switch ($machines[0]) {
         0x8664 { 'x86_64' }
         0xAA64 { 'aarch64' }
@@ -45,10 +51,11 @@ try {
     }
     if ($Target -and $Target -ne "$arch-pc-windows-msvc") { throw 'PE architecture does not match Target.' }
 
-    $stage = Join-Path $root ".claude/installer-stage-$([System.Guid]::NewGuid())"
+    $stage = Join-Path $root ".claude-workspace/installer-stage-$([System.Guid]::NewGuid())"
     New-Item -ItemType Directory -Force -Path "$stage/payload/extension/icons" | Out-Null
 
     Copy-Item "$releaseDir/installer.exe" "$stage/installer.exe"
+    Copy-Item "$releaseDir/installer-cli.exe" "$stage/installer-cli.exe"
     Copy-Item "$releaseDir/inno-creed.exe" "$stage/payload/inno-creed.exe"
     Copy-Item "extension/manifest.json" "$stage/payload/extension/manifest.json"
     Copy-Item "extension/background.js" "$stage/payload/extension/background.js"

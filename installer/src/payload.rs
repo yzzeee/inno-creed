@@ -7,6 +7,7 @@
 //! 배포 zip 구조:
 //! ```text
 //! installer.exe (또는 macOS/Linux 실행 파일)
+//! installer-cli.exe (또는 macOS/Linux 콘솔 실행 파일)
 //! payload/
 //!   inno-creed(.exe)
 //!   extension/          (Windows만)

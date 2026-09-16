@@ -202,7 +202,9 @@ Claude Desktop(채팅·Cowork·Code 탭)에서 쓸 거라면, JSON을 직접 안
 
 압축을 풀면 나오는 `installer`(Windows는 `installer.exe`)를 실행하세요. **`installer`와 `payload/` 폴더를 같은 자리에 둔 채로 실행해야 합니다** — `installer`만 따로 옮기면 설치할 파일을 못 찾습니다. 자세한 화면별 안내는 [`docs/INSTALL.md`](docs/INSTALL.md) 참고. Claude Code CLI 전용으로만 쓸 거라면 아래 프리빌트 바이너리 방식이 더 간단합니다.
 
-그래픽 드라이버 오류로 창이 뜨지 않으면 v2.2.0부터 `installer --cli`로 터미널에서 설치할 수 있습니다. Windows PowerShell에서는 `Start-Process .\installer.exe -ArgumentList '--cli' -NoNewWindow -Wait`를 실행하세요. 제거는 `--cli --uninstall`입니다.
+다음 릴리즈 및 현재 소스 빌드부터 ZIP에 GUI용 `installer`와 터미널용 `installer-cli`가 함께 들어갑니다. Windows에서는 `installer-cli.exe`를 더블클릭하면 콘솔 창이 열리고, 완료·오류 후 Enter로 닫습니다. PowerShell에서는 `.\installer-cli.exe`로 실행하고, 제거는 `--uninstall`을 붙입니다.
+
+기존 릴리즈에 `installer-cli`가 없다면 v2.2.0부터 지원하는 `installer --cli`를 사용하세요. Windows PowerShell에서는 `Start-Process .\installer.exe -ArgumentList '--cli' -NoNewWindow -Wait`로 실행해야 입력이 섞이지 않습니다.
 
 ### 프리빌트 바이너리
 

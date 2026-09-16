@@ -6,19 +6,12 @@ use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 
 pub fn main() -> i32 {
-    // Windows GUI subsystem 실행 파일에는 기본 콘솔이 없다. stdio 사용 전에 연결한다.
-    let own_console = match attach_console() {
-        Ok(own) => own,
-        Err(error) => {
-            eprintln!("터미널 연결 실패: {error}");
-            return 1;
-        }
-    };
+    let own_console = owns_console();
     let mut input = io::stdin().lock();
     let mut output = io::stdout().lock();
     let result = run(&mut input, &mut output);
-    let code = match result {
-        Ok(()) => 0,
+    let code = match &result {
+        Ok(_) => 0,
         Err(error) => {
             eprintln!("오류: {error:#}");
             1
@@ -27,10 +20,17 @@ pub fn main() -> i32 {
     if own_console {
         let _ = prompt(&mut input, &mut output, "Enter를 누르면 종료합니다: ");
     }
+    // 더블클릭 실행의 결과 확인 대기가 끝난 뒤 자기 삭제를 예약한다.
+    if let Ok(Some((keep, install_dir))) = result {
+        install::schedule_self_delete(&keep, &install_dir);
+    }
     code
 }
 
-fn run(input: &mut impl BufRead, output: &mut impl Write) -> anyhow::Result<()> {
+fn run(
+    input: &mut impl BufRead,
+    output: &mut impl Write,
+) -> anyhow::Result<Option<(PathBuf, PathBuf)>> {
     let mut uninstall = false;
     for arg in std::env::args().skip(1) {
         match arg.as_str() {
@@ -39,9 +39,9 @@ fn run(input: &mut impl BufRead, output: &mut impl Write) -> anyhow::Result<()> 
             "--help" | "-h" => {
                 writeln!(
                     output,
-                    "설치: installer --cli\n제거: installer --cli --uninstall"
+                    "설치: installer-cli\n제거: installer-cli --uninstall"
                 )?;
-                return Ok(());
+                return Ok(None);
             }
             _ => bail!("알 수 없는 옵션: {arg}"),
         }
@@ -124,7 +124,7 @@ fn run(input: &mut impl BufRead, output: &mut impl Write) -> anyhow::Result<()> 
         },
     )? {
         writeln!(output, "취소했습니다.")?;
-        return Ok(());
+        return Ok(None);
     }
     while config_kit::is_claude_desktop_running() {
         writeln!(output, "Claude Desktop을 트레이에서도 완전히 종료해주세요.")?;
@@ -135,11 +135,10 @@ fn run(input: &mut impl BufRead, output: &mut impl Write) -> anyhow::Result<()> 
         )?;
     }
     if uninstall {
-        let keep = install_dir.join("installer.exe");
+        let keep = install_dir.join("installer-cli.exe");
         install::perform_uninstall(config.as_deref(), &install_dir, &keep)?;
         #[cfg(windows)]
         crate::registry::remove_uninstall_entry();
-        install::schedule_self_delete(&keep, &install_dir);
         writeln!(output, "설치된 파일 제거가 완료됐습니다.")?;
         if config.is_none() {
             writeln!(
@@ -147,7 +146,7 @@ fn run(input: &mut impl BufRead, output: &mut impl Write) -> anyhow::Result<()> 
                 "설정 파일을 선택하지 않아 등록은 남아 있을 수 있습니다. 직접 확인해주세요."
             )?;
         }
-        return Ok(());
+        return Ok(Some((keep, install_dir)));
     }
     let config = config.context("설정 파일이 선택되지 않았습니다.")?;
     // 확인 대기 중 파일이 바뀌었더라도 복사/등록 전에 다시 검사한다.
@@ -162,7 +161,7 @@ fn run(input: &mut impl BufRead, output: &mut impl Write) -> anyhow::Result<()> 
     )?;
     #[cfg(windows)]
     {
-        let registration = install::copy_installer_self(&install_dir, "installer.exe")
+        let registration = install::copy_installer_self(&install_dir, "installer-cli.exe")
             .map_err(anyhow::Error::from)
             .and_then(|copy| crate::registry::register_uninstall_entry(&install_dir, &copy));
         if let Err(error) = registration {
@@ -202,7 +201,7 @@ fn run(input: &mut impl BufRead, output: &mut impl Write) -> anyhow::Result<()> 
         }
     }
     writeln!(output, "Claude Desktop을 다시 실행하면 반영됩니다.")?;
-    Ok(())
+    Ok(None)
 }
 
 fn choose_config(
@@ -323,27 +322,23 @@ fn confirm(input: &mut impl BufRead, output: &mut impl Write, label: &str) -> an
 }
 
 #[cfg(not(windows))]
-fn attach_console() -> io::Result<bool> {
-    Ok(false)
+fn owns_console() -> bool {
+    false
 }
 
 #[cfg(windows)]
-fn attach_console() -> io::Result<bool> {
+fn owns_console() -> bool {
+    use std::io::IsTerminal;
     #[link(name = "kernel32")]
     unsafe extern "system" {
-        fn AttachConsole(process_id: u32) -> i32;
-        fn AllocConsole() -> i32;
+        fn GetConsoleProcessList(process_list: *mut u32, process_count: u32) -> u32;
     }
-    // ERROR_ACCESS_DENIED는 이미 콘솔에 연결된 경우다.
-    if unsafe { AttachConsole(u32::MAX) } != 0
-        || io::Error::last_os_error().raw_os_error() == Some(5)
-    {
-        return Ok(false);
-    }
-    if unsafe { AllocConsole() } == 0 {
-        return Err(io::Error::last_os_error());
-    }
-    Ok(true)
+    // 셸과 함께 연결되어 있으면 셸이 결과를 보존한다. 자기 혼자 쓰는 콘솔만
+    // 닫기 전에 기다린다. 파이프/리다이렉션 입력에는 추가 입력을 요구하지 않는다.
+    let mut process_id = 0;
+    io::stdin().is_terminal()
+        && io::stdout().is_terminal()
+        && unsafe { GetConsoleProcessList(&mut process_id, 1) } == 1
 }
 
 #[cfg(test)]

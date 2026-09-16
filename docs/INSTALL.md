@@ -32,33 +32,40 @@ Claude Desktop 앱(채팅·Cowork·Code 탭)에서 쓸 거라면, 아래 1~6번�
 >
 > GUI 인스톨러가 안 되거나(사내 정책으로 실행 파일이 막힘 등), 직접 확인하며 진행하고 싶다면 아래 1번부터 수동으로 진행하세요.
 
-### 그래픽 드라이버 오류가 날 때 — 터미널 설치
+### GUI와 CLI 인스톨러
 
-> `--cli`는 v2.2.0부터 지원합니다.
+**다음 릴리즈 및 현재 소스 빌드부터** 같은 ZIP에 두 실행 파일이 들어갑니다. 기존 릴리즈에 `installer-cli`가 없다면 아래의 기존 실행 방법을 사용하세요.
 
-`installer --cli`는 그래픽을 초기화하지 않고 Claude Desktop용 설치를 터미널에서 진행합니다. `installer`와 `payload/`를 함께 둔 채로 실행하세요.
+| 실행 파일 | 용도 |
+|---|---|
+| `installer.exe` (macOS/Linux: `installer`) | GUI 설치 화면 |
+| `installer-cli.exe` (macOS/Linux: `installer-cli`) | 그래픽 초기화 없이 터미널에서 설치 |
 
-Windows PowerShell에서는 GUI 실행 파일이 끝날 때까지 기다리도록 다음 명령을 사용합니다.
+Windows에서는 **`installer-cli.exe`를 더블클릭**하면 콘솔 창이 열립니다. 설치 완료·취소·오류 후에는 Enter를 눌러 닫을 수 있습니다. 이미 연 PowerShell에서는 다음처럼 실행하면 됩니다. 별도의 `--cli`나 `Start-Process`는 필요 없습니다.
+
+```powershell
+.\installer-cli.exe
+# 제거
+.\installer-cli.exe --uninstall
+```
+
+macOS/Linux에서는 터미널에서 `./installer-cli`를 실행합니다. 실행 파일과 `payload/`를 같은 폴더에 두세요. 두 실행 파일은 같은 설치·제거 로직을 사용하며, CLI로 설치하면 Windows 앱 목록의 제거 기능도 CLI로 실행됩니다.
+
+설정 파일 후보를 확인하고, 다른 파일을 쓰려면 전체 경로를 입력합니다. 설치 위치는 Enter로 기본값을 사용하거나, 다른 상위 폴더를 입력하면 그 안의 `inno-creed` 폴더를 사용합니다. **설치 확인에서 `y`를 입력해야 설치됩니다**(Enter는 취소). Claude Desktop이 켜져 있으면 종료 후 다시 확인합니다. Windows 확장 프로그램 연결 안내와 선택적 `doctor` 인증 진단도 제공됩니다. Ctrl+C로 중단할 수 있습니다.
+
+제거 시 설치했던 위치를 선택하세요. 선택한 `inno-creed` 폴더의 파일을 삭제하므로 확인된 대상 폴더를 읽고 진행하세요. 설정 파일을 찾지 못하면 `-`로 등록 해제를 건너뛸 수 있으며, 이 경우 Claude Desktop 설정에 남은 등록은 직접 정리해야 합니다.
+
+#### 기존 릴리즈 (`installer-cli`가 없는 v2.2.0 이후 배포본)
+
+Windows PowerShell에서는 입력이 섞이지 않도록 반드시 `-Wait`를 사용합니다.
 
 ```powershell
 Start-Process .\installer.exe -ArgumentList '--cli' -NoNewWindow -Wait
-```
-
-macOS/Linux:
-
-```sh
-./installer --cli
-```
-
-설정 파일 후보를 확인하고, 다른 파일을 쓰려면 전체 경로를 입력합니다. 설치 위치는 Enter로 기본값을 사용하거나, 다른 상위 폴더를 입력하면 그 안의 `inno-creed` 폴더를 사용합니다. 설치 확인에서 `y`를 입력해야 파일을 복사하고 설정을 백업·등록합니다. Claude Desktop이 켜져 있으면 종료 후 다시 확인합니다. Windows 확장 프로그램 등록 안내와 선택적 `doctor` 인증 진단도 제공됩니다. Ctrl+C로 중단할 수 있습니다.
-
-터미널에서 제거하려면 `./installer --cli --uninstall`을 사용합니다. Windows PowerShell에서는:
-
-```powershell
+# 제거
 Start-Process .\installer.exe -ArgumentList '--cli','--uninstall' -NoNewWindow -Wait
 ```
 
-제거 시 설치했던 위치를 선택하세요. 선택한 `inno-creed` 폴더의 파일을 삭제하므로 확인된 대상 폴더를 읽고 진행하세요. 설정 파일을 찾지 못하면 `-`로 등록 해제를 건너뛸 수 있으며, 이 경우 Claude Desktop 설정에 남은 등록은 직접 정리해야 합니다.
+macOS/Linux에서는 `./installer --cli` 또는 `./installer --cli --uninstall`을 사용합니다. 새 빌드에서도 기존 `installer --cli` 명령은 지원하며, Windows에서는 CLI 전용 실행 파일을 별도 콘솔 창으로 엽니다.
 
 ---
 

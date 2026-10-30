@@ -1512,6 +1512,22 @@ async fn box_total(c: &GwClient, seq: i64) -> Option<i64> {
         .and_then(|x| json_str(x.get("totalCount")).parse::<i64>().ok())
 }
 
+/// muid 목록 문자열을 서버가 받는 형태(콤마로 이은 숫자)로 다듬는다.
+///
+/// ⚠️ 대괄호가 섞이면 서버는 `SUCCESS` 를 돌려주고 **그 항목만 말없이 건너뛴다**.
+/// `"[a, b, c]"` 를 그대로 보내면 맨 앞 `[a` 가 파싱에 실패해 a 가 안 옮겨지고,
+/// 맨 뒤 `c]` 는 뒤에 붙은 글자가 무시돼 통과한다. 2026-09-30 실측.
+///
+/// 건수 read-back 이 이 경우를 "일부만 옮겨짐"으로 잡아내기는 하지만, 애초에
+/// 보내는 값을 다듬으면 실패 자체가 생기지 않는다.
+fn normalize_uids(uids: &str) -> String {
+    uids.split(',')
+        .map(|t| t.trim().trim_matches(|ch: char| !ch.is_ascii_digit()))
+        .filter(|t| !t.is_empty())
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 /// 메일 이동 — `mail002A08` + 대상 메일함 건수 read-back.
 ///
 /// ⚠️ **muid로는 검증할 수 없다.** 메일함을 옮기면 muid가 재부여된다(휴지통 이동에서 실측된
@@ -1519,7 +1535,8 @@ async fn box_total(c: &GwClient, seq: i64) -> Option<i64> {
 /// 같은 순간에 새 메일이 도착하면 증가분이 어긋날 수 있어, 어긋남은 실패가 아니라
 /// "확인 못 함"으로 돌려준다(`docs/architecture.md` §7.1 3분법). 증가가 **아예 없으면** 실패다.
 pub async fn move_mails(c: &GwClient, uids: &str, to: &str) -> Result<Value> {
-    let uids = uids.trim();
+    let uids = normalize_uids(uids);
+    let uids = uids.as_str();
     if uids.is_empty() {
         return Err(InvalidInput("muids가 비어 있다".into()).into());
     }
@@ -1664,6 +1681,44 @@ pub async fn delete_mailbox(c: &GwClient, name: &str) -> Result<Value> {
         "note": match gone {
             Ok(true) => "",
             Ok(false) => "실행은 됐으나 메일함이 목록에 그대로 있다",
+            Err(_) => "실행은 됐으나 확인 못 함 — 목록 재조회 실패",
+        },
+    }))
+}
+
+/// 메일함(폴더) 이름 변경 — `mail001A07` + 목록 read-back.
+///
+/// ⚠️ 서버는 바뀌지 않은 경우에도 `SUCCESS`를 돌려준다. 판정은 목록 재조회가 한다
+/// (`docs/architecture.md` §7.1 3분법). 시스템 메일함은 이름을 바꿀 수 없다.
+pub async fn rename_mailbox(c: &GwClient, name: &str, new_name: &str) -> Result<Value> {
+    let name = name.trim();
+    let new_name = new_name.trim();
+    if new_name.is_empty() {
+        return Err(InvalidInput("new_name이 비어 있다".into()).into());
+    }
+    if SYSTEM_BOXES.iter().any(|b| b.eq_ignore_ascii_case(name)) {
+        return Err(InvalidInput(format!(
+            "'{name}'은 시스템 메일함이라 이름을 바꿀 수 없다(INBOX·SENT·DRAFTS·TRASH·SPAM)"
+        ))
+        .into());
+    }
+    let seq = mbox_seq(c, name).await?;
+
+    c.call(
+        "/mail/mail001A07",
+        &json!({ "mbox": new_name, "mboxSeq": seq.to_string() }),
+    )
+    .await?;
+
+    let done = list_mailboxes(c)
+        .await
+        .map(|b| find_mbox_seq(&b, new_name) == Some(seq));
+    Ok(json!({
+        "ok": done.as_ref().copied().unwrap_or(false),
+        "name": name, "new_name": new_name, "mbox_seq": seq,
+        "note": match done {
+            Ok(true) => "",
+            Ok(false) => "실행은 됐으나 목록에 새 이름이 그 번호로 보이지 않는다",
             Err(_) => "실행은 됐으나 확인 못 함 — 목록 재조회 실패",
         },
     }))
@@ -2459,5 +2514,12 @@ mod tests {
         assert!(["autoMUID", "beforeMUID", "mailKey"]
             .iter()
             .all(|k| v[k].is_empty()));
+    }
+    #[test]
+    fn 대괄호와_공백을_걷는다() {
+        assert_eq!(normalize_uids("[14668189, 14668190]"), "14668189,14668190");
+        assert_eq!(normalize_uids(" 14668189 , 14668190 "), "14668189,14668190");
+        assert_eq!(normalize_uids("14668189"), "14668189");
+        assert_eq!(normalize_uids("[]"), "");
     }
 }

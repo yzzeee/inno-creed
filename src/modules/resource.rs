@@ -333,6 +333,64 @@ pub async fn resources_in_group(c: &GwClient, group: &str) -> Result<Vec<Value>>
         .unwrap_or_default())
 }
 
+/// 캘린더 일정에 붙일 자원 하나를 이름 또는 resSeq로 찾는다(`list_resources`/`rs121A01`를 뒤진다).
+/// resSeq 완전일치 → 자원명 완전일치 → 자원명 부분일치 순으로 좁힌다. 정확히 하나가 아니면 거부한다
+/// (엉뚱한 회의실을 붙이는 것은 되돌리기 번거로운 일이라 `resolve_subscribers`와 같은 태도를 취한다).
+pub async fn resolve_resource_for_schedule(c: &GwClient, name_or_seq: &str) -> Result<Value> {
+    let data = list_resources(c).await?;
+    let list: Vec<Value> = data.get("resultList").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let q = name_or_seq.trim();
+    let by_seq: Vec<&Value> = list.iter().filter(|r| r.get("resSeq").and_then(|v| v.as_str()) == Some(q)).collect();
+    let hits: Vec<&Value> = if !by_seq.is_empty() {
+        by_seq
+    } else {
+        let ql = q.to_lowercase();
+        let exact: Vec<&Value> = list
+            .iter()
+            .filter(|r| r.get("resName").and_then(|v| v.as_str()).map(|s| s.to_lowercase()) == Some(ql.clone()))
+            .collect();
+        if !exact.is_empty() {
+            exact
+        } else {
+            list.iter()
+                .filter(|r| {
+                    r.get("resName")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_lowercase().contains(&ql))
+                        .unwrap_or(false)
+                })
+                .collect()
+        }
+    };
+    match hits.len() {
+        0 => Err(InvalidInput::new(format!(
+            "자원 '{q}' 를 찾지 못했습니다. list_resources 로 확인 후 이름이나 resSeq를 지정하세요."
+        ))
+        .into()),
+        1 => Ok(hits[0].clone()),
+        _ => {
+            let cands: Vec<String> = hits
+                .iter()
+                .take(10)
+                .map(|r| {
+                    format!(
+                        "{}({}, {})",
+                        r.get("resName").and_then(|v| v.as_str()).unwrap_or(""),
+                        r.get("resSeq").and_then(|v| v.as_str()).unwrap_or(""),
+                        r.get("attrName").and_then(|v| v.as_str()).unwrap_or("")
+                    )
+                })
+                .collect();
+            Err(InvalidInput::new(format!(
+                "자원 '{q}' 가 {}건입니다. resSeq로 지정하세요: {}",
+                hits.len(),
+                cands.join(", ")
+            ))
+            .into())
+        }
+    }
+}
+
 /// `YYYYMMDDHHmm` → `YYYY-MM-DDTHH:mm`. 형식이 다르면 원문 그대로.
 fn iso(ts: &str) -> String {
     if ts.len() == 12 && ts.chars().all(|c| c.is_ascii_digit()) {

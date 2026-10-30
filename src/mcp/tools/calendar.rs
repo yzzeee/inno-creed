@@ -41,7 +41,7 @@ impl Amaranth {
     }
 
     #[tool(
-        description = "일정을 등록한다(등록 후 재조회로 확인). 시각 YYYYMMDDHHmm. calendar 미지정 시 본인 개인 캘린더, 지정 시 그 캘린더(mcalSeq 또는 이름)에 등록 — ⚠️ 공용 캘린더는 다른 사람에게도 보인다. participants로 참여자를 넣으면 그 사람들 일정에도 나타난다(메일 발송은 안 함). secret_memo는 본인만 보는 메모이나 **반영 확인이 불가능**하다. 수정(update_calendar_event)해도 참여자·화상회의는 보존된다."
+        description = "일정을 등록한다(등록 후 재조회로 확인). 시각 YYYYMMDDHHmm. calendar 미지정 시 본인 개인 캘린더, 지정 시 그 캘린더(mcalSeq 또는 이름)에 등록 — ⚠️ 공용 캘린더는 다른 사람에게도 보인다. participants로 참여자를 넣으면 그 사람들 일정에도 나타난다(메일 발송은 안 함). secret_memo는 본인만 보는 메모이나 **반영 확인이 불가능**하다. 수정(update_calendar_event)해도 참여자·화상회의는 보존된다. resource로 회의실 등 자원 이름/resSeq를 주면 이 일정에 자원을 바로 연결한다(신규 등록 경로만 지원, 2026-09-28 실측)."
     )]
     async fn create_calendar_event(
         &self,
@@ -52,10 +52,19 @@ impl Amaranth {
         let participants = modules::calendar::resolve_participants(&self.client, &specs)
             .await
             .map_err(map_domain_err)?;
+        let resource = match a.resource.as_deref() {
+            Some(q) if !q.trim().is_empty() => Some(
+                modules::resource::resolve_resource_for_schedule(&self.client, q)
+                    .await
+                    .map_err(map_domain_err)?,
+            ),
+            _ => None,
+        };
         let extras = modules::calendar::EventExtras {
             my_memo: a.secret_memo.unwrap_or_default(),
             participants,
             video: a.video.as_deref().unwrap_or("N").eq_ignore_ascii_case("Y"),
+            resource,
         };
         let data = modules::calendar::create_event_and_verify(
             &self.client,

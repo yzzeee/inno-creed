@@ -60,6 +60,12 @@ pub struct CreateEventArgs {
     /// 화상회의 사용 여부 "Y"/"N" (기본 "N").
     #[serde(default)]
     pub video: Option<String>,
+    /// 붙일 자원(회의실) 이름 또는 resSeq(선택). list_resources로 미리 확인.
+    /// 이름이 여러 자원에 걸치면(동명이인처럼) 등록하지 않고 실패 — resSeq로 지정할 것.
+    /// ⚠️ 2026-09-28 실측으로 확정된 **신규 등록 경로만** 지원한다. 기존 일정에 나중에 붙이거나
+    /// 떼는 것은 아직 안 됨(update_calendar_event는 이 필드를 받지 않는다).
+    #[serde(default)]
+    pub resource: Option<String>,
 }
 
 #[derive(Deserialize, rmcp::schemars::JsonSchema)]

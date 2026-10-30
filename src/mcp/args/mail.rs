@@ -194,6 +194,15 @@ pub struct CreateMailboxArgs {
 
 #[derive(Deserialize, rmcp::schemars::JsonSchema)]
 #[schemars(crate = "rmcp::schemars")]
+pub struct RenameMailboxArgs {
+    /// 현재 메일함(폴더) 이름. list_mailboxes 의 name.
+    pub name: String,
+    /// 새 이름.
+    pub new_name: String,
+}
+
+#[derive(Deserialize, rmcp::schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
 pub struct DeleteMailboxArgs {
     /// 삭제할 메일함 이름. ⚠️ 안에 든 메일도 함께 사라지며 되돌릴 수 없다.
     pub name: String,

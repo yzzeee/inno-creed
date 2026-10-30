@@ -267,6 +267,20 @@ impl Amaranth {
     }
 
     #[tool(
+        description = "메일함(폴더) 이름을 바꾼다(mail001A07). name=현재 이름(list_mailboxes의 name), new_name=새 이름. 시스템 메일함(INBOX·SENT·DRAFTS·TRASH·SPAM)은 거부한다. 서버는 바뀌지 않은 경우에도 SUCCESS를 돌려주므로 목록을 다시 읽어 판정한 결과를 `ok`로 싣는다 — `ok:false`는 **반영이 확인되지 않았다**는 뜻이니 `note`와 함께 그대로 사용자에게 알릴 것."
+    )]
+    async fn rename_mailbox(
+        &self,
+        Parameters(a): Parameters<RenameMailboxArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.ensure_session().await?;
+        let data = modules::mail::rename_mailbox(&self.client, &a.name, &a.new_name)
+            .await
+            .map_err(map_domain_err_ctx("메일함 이름변경 실패"))?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(data.to_string())]))
+    }
+
+    #[tool(
         description = "메일함(폴더)을 삭제한다(mail001A17 사전검사 → mail001A06). ⚠️ **안에 든 메일도 함께 사라지고 되돌릴 수 없다** — 사용자가 명시적으로 지시할 때만 호출한다. 시스템 메일함(INBOX·SENT·DRAFTS·TRASH·SPAM)은 거부한다. 그 메일함을 가리키는 자동분류 규칙이 있으면 삭제하지 않고 오류로 알린다 — list_mail_filters로 확인해 delete_mail_filter로 먼저 지울 것."
     )]
     async fn delete_mailbox(

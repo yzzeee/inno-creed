@@ -287,6 +287,32 @@ pub struct EventExtras {
     pub participants: Vec<Participant>,
     /// 화상회의 사용 여부.
     pub video: bool,
+    /// 붙일 자원(회의실 등) 하나 — `resource::resolve_resource_for_schedule`의 원본 레코드
+    /// (resSeq/resName/attrSeq/attrName). 2026-09-28 devtools 캡처로 확정된 신규 생성 경로만 지원 —
+    /// 기존 일정에 나중에 붙이거나 떼는 경로(`update_event_items`)는 아직 미확인이라 여기서 안 다룬다.
+    pub resource: Option<Value>,
+}
+
+/// 자원 하나를 일정에 연결하는 `resList` 항목(2026-09-28 devtools 캡처로 확정).
+/// `resourceId`=`{attrSeq}_{resSeq}`, `id`=`{attrSeq}_{resSeq}_{start}_{end}` — 실측 그대로.
+fn build_res_list_item(resource: &Value, start: &str, end: &str, allday: &str, req_text: &str) -> Value {
+    let g = |k: &str| resource.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let res_seq = g("resSeq");
+    let attr_seq = g("attrSeq");
+    json!({
+        "resourceId": format!("{attr_seq}_{res_seq}"),
+        "id": format!("{attr_seq}_{res_seq}_{start}_{end}"),
+        "title": "",
+        "startDate": start,
+        "endDate": end,
+        "alldayYn": allday,
+        "attrName": g("attrName"),
+        "resName": g("resName"),
+        "resSeq": res_seq,
+        "attrSeq": attr_seq,
+        "linkYn": "N",
+        "reqText": req_text
+    })
 }
 
 /// 주최자(본인) + 참석자 → `schPartEmpList`.
@@ -369,7 +395,10 @@ pub async fn upsert_event(
             "schPartEmpList": build_part_emp_list(&c.comp_seq(), &host, &extras.participants),
             "schUserList": [],
             "addressUserList": [],
-            "resList": [],
+            "resList": match &extras.resource {
+                Some(r) => vec![build_res_list_item(r, start, end, allday, title)],
+                None => vec![],
+            },
             "reservedList": [],
             "uidList": "",
             "placeMapData": "{}",
@@ -702,6 +731,20 @@ pub async fn create_event_and_verify(
                 "sent": true,
                 "verified": false,
                 "note": "조회 응답에 비밀메모 필드가 없어 반영 여부를 확인할 수 없다(아마란스 웹에서 확인할 것)."
+            }),
+        );
+    }
+    if let Some(r) = &extras.resource {
+        // list_events/find_event 가 쓰는 조회 API는 자원 필드를 안 준다 — 여기서도 secretMemo와
+        // 같은 태도: 보냈다는 것과 반영됐다는 것을 가르고, 반영 확인은 아직 못 한다고 그대로 드러낸다.
+        o.insert(
+            "resource".into(),
+            json!({
+                "sent": true,
+                "verified": false,
+                "resSeq": r.get("resSeq").and_then(|v| v.as_str()).unwrap_or(""),
+                "resName": r.get("resName").and_then(|v| v.as_str()).unwrap_or(""),
+                "note": "이 도구의 조회 경로로는 자원 연결 반영 여부를 확인 못 한다 — 아마란스 웹에서 확인할 것."
             }),
         );
     }
